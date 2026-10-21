@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software or data, please cite it as below."
+title: "Learning Behavioral Equivalence in Fuzzy Knowledge Graphs via Neuro-Symbolic Methods for Smart Grid Fault Diagnosis: code and data"
+type: software
+license: MIT
+version: 1.0.0
+repository-code: "https://github.com/McGarrett7/neurosymbolic-fuzzy-bisimulation"
+authors:
+  - family-names: "<FAMILY NAME>"
+    given-names: "<GIVEN NAMES>"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+keywords:
+  - fuzzy bisimulation
+  - knowledge graphs
+  - neuro-symbolic
+  - graph neural networks
