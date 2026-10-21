@@ -6,8 +6,8 @@ license: MIT
 version: 1.0.0
 repository-code: "https://github.com/McGarrett7/neurosymbolic-fuzzy-bisimulation"
 authors:
-  - family-names: "<FAMILY NAME>"
-    given-names: "<GIVEN NAMES>"
+  - family-names: "Nguyễn"
+    given-names: "Thị Hồng Khánh"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
 keywords:
   - fuzzy bisimulation
