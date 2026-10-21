@@ -9,6 +9,8 @@ authors:
   - family-names: "Nguyễn"
     given-names: "Thị Hồng Khánh"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Nguyễn"
+    given-names: "Sơn Tùng"
 keywords:
   - fuzzy bisimulation
   - knowledge graphs
