@@ -124,7 +124,7 @@ class WeightedRGCNLayer(nn.Module):
 
 class GraphEncoder(nn.Module):
     def __init__(self, kind: str, feat_dim: int, num_relations: int, d: int = 128, layers: int = 2,
-                 num_bases: int = 0, dropout: float = 0.2, final_relu: bool = True):
+                 num_bases: int = 0, dropout: float = 0.2, final_relu: bool = False):
         super().__init__()
         self.kind = kind
         self.inp = nn.Linear(feat_dim, d)
@@ -158,7 +158,8 @@ class GraphEncoder(nn.Module):
                 h = layer(h, edge_index)
             else:
                 h = layer(h)
-            if k < len(self.layers) - 1 or self.final_relu:   # paper: σ = ReLU on every layer
+            # Paper: σ = ReLU on every layer; off on the last one by default (B̂ >= 0.5 otherwise).
+            if k < len(self.layers) - 1 or self.final_relu:
                 h = F.relu(h)
         return h
 
@@ -166,7 +167,7 @@ class GraphEncoder(nn.Module):
 class BisimNet(nn.Module):
     def __init__(self, encoder: str, feat_dim: int, num_relations: int, sem_dim: int | None,
                  d: int = 128, layers: int = 2, num_bases: int = 0, dropout: float = 0.2,
-                 alpha: float | str = 0.7, normalize_fusion: bool = False, final_relu: bool = True):
+                 alpha: float | str = 0.7, normalize_fusion: bool = False, final_relu: bool = False):
         super().__init__()
         self.alpha_mode = alpha
         self.use_graph = alpha == "learn" or float(alpha) > 0.0

@@ -167,6 +167,8 @@ def suite_ablation(common) -> None:
         "w/o symbolic supervision (Jaccard target)": ({}, {"target": "jaccard"}),
         "random sampling": ({"sampling": "random"}, {}),
         "with fuzzy edge weights in messages": ({}, {"edge_weight": True}),
+        "paper's final ReLU (full model)": ({}, {"final_relu": True}),
+        "paper's final ReLU, w/o semantic (a=1)": ({}, {"final_relu": True, "alpha": "1.0"}),
     }
     run_grid(common, variants, "ablation", reference="Full model")
 

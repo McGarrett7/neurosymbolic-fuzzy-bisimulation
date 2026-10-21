@@ -52,7 +52,10 @@ downloaded.
   bisimulation is decided by the moves s → s′. Inverse edges are added as
   separate relation types. Messages are scaled by w/|N_r(i)|.
 * **No ReLU on the output layer.** With non-negative embeddings, cos ≥ 0, so B̂
-  could never fall below 0.5.
+  could never fall below 0.5 for any α = 1 model (the GNN baselines and the
+  w/o-semantic ablation), which would bias the comparison. `--final-relu`
+  restores the paper's setting; the `ablation` suite runs it as two extra
+  variants.
 * **Normalised fusion.** ĝ and ŝ are L2-normalised before
   z = αĝ + (1−α)ŝ. Without this, α is mixed up with the norms of the two
   channels.

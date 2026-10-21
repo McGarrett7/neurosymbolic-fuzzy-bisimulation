@@ -22,9 +22,14 @@ Defaults follow the paper (Algorithm 2, Section IV-D/E, Table IV):
 Optional deviations (off by default): --bases K (basis-decomposed W_r),
 --inverse (reverse edges as extra relations), --edge-weight (messages scaled
 by the fuzzy degree), --normalize-fusion (L2-normalise both channels so α is
-not confounded with their norms), --no-final-relu (with ReLU on the last
-layer and α = 1, cos >= 0 so B̂ >= 0.5), --steps-per-epoch N (N random
+not confounded with their norms), --steps-per-epoch N (N random
 batches per epoch instead of a pass over P, needed for --pair-sampling balanced).
+
+Deviation on by default: no ReLU after the last GNN layer.  The paper applies
+σ = ReLU on every layer; then g >= 0, cos >= 0 and B̂ >= 0.5 for every α = 1
+model (R-GCN/GCN/SAGE/MLP baselines, the w/o-semantic ablation), which can
+never predict low similarities and makes the baseline comparison unfair.
+--final-relu restores the paper's configuration (used as an ablation).
 """
 
 from __future__ import annotations
@@ -106,7 +111,8 @@ def add_train_args(ap: argparse.ArgumentParser) -> None:
                     help="semantic encoder spec (see semantic.py) or 'none'; paper: " + PAPER_SEMANTIC)
     ap.add_argument("--alpha", default="0.7", help="fusion weight in [0,1] or 'learn'")
     ap.add_argument("--normalize-fusion", action="store_true", help="L2-normalise g and ϕ_proj before fusion")
-    ap.add_argument("--no-final-relu", action="store_true", help="no ReLU after the last GNN layer")
+    ap.add_argument("--final-relu", action="store_true",
+                    help="paper's ReLU after the last GNN layer (bounds B_hat >= 0.5 when alpha = 1)")
     ap.add_argument("--target", default="bisim", choices=["bisim", "jaccard"])
     ap.add_argument("--pair-sampling", default="uniform", choices=["uniform", "balanced"])
     ap.add_argument("--dim", type=int, default=128)
@@ -135,13 +141,13 @@ def model_kwargs(a: argparse.Namespace, g: GraphTensors) -> dict:
     return dict(encoder=a.encoder, feat_dim=g.x.shape[1], num_relations=g.num_relations,
                 sem_dim=None if g.sem is None else g.sem.shape[1], d=a.dim, layers=a.layers,
                 num_bases=a.bases, dropout=a.dropout, alpha=alpha,
-                normalize_fusion=a.normalize_fusion, final_relu=not a.no_final_relu)
+                normalize_fusion=a.normalize_fusion, final_relu=a.final_relu)
 
 
 def deviations(a: argparse.Namespace) -> str:
     """Short tag of the options that depart from the paper ('paper' if none)."""
     flags = [f"b{a.bases}" if a.bases else "", "inv" if a.inverse else "", "ew" if a.edge_weight else "",
-             "nf" if a.normalize_fusion else "", "nofr" if a.no_final_relu else "",
+             "nf" if a.normalize_fusion else "", "" if a.final_relu else "nofr",
              f"spe{a.steps_per_epoch}" if a.steps_per_epoch else "",
              f"P{a.train_pairs}" if a.train_pairs else ""]
     return "-".join(f for f in flags if f) or "paper"
