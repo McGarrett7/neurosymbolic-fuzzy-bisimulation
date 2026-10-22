@@ -5,3 +5,4 @@ scipy>=1.11
 # default semantic encoder st:all-mpnet-base-v2 (semantic.py); tfidf and openai: need neither
 sentence-transformers>=2.2
 # transformers>=4.30
+matplotlib>=3.7
