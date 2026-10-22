@@ -33,6 +33,11 @@ from .local_sampling import (induced_reference, local_reference, sample_pairs,
 
 
 def add_label_args(ap: argparse.ArgumentParser) -> None:
+    """Register the stage-1 command-line options.
+
+    Args:
+        ap: Parser to extend.
+    """
     ap.add_argument("--dataset", required=True, help=f"one of {list(DATASETS)} or a folder in data/")
     ap.add_argument("--data-root", type=Path, default=DATA_ROOT)
     ap.add_argument("--confidence", default="auto", help=CONFIDENCE_SCHEMES)
@@ -65,6 +70,14 @@ def add_label_args(ap: argparse.ArgumentParser) -> None:
 
 
 def label_tag(a: argparse.Namespace) -> str:
+    """Derive the label file name from the options.
+
+    Args:
+        a: Parsed label options.
+
+    Returns:
+        A file-system-safe tag.
+    """
     sem = "" if (a.semantics, a.discount) == ("godel", 1.0) else f"_{a.semantics}{a.discount:g}"
     tag = (f"{a.confidence}_{a.label_mode}{sem}_{a.sampling}{a.sample_ratio:g}_g{a.gamma:g}"
            f"_tr-{a.train_reference}_ev-{a.eval_reference}{a.depth}_s{a.seed}")
@@ -72,13 +85,33 @@ def label_tag(a: argparse.Namespace) -> str:
 
 
 def label_path(a: argparse.Namespace) -> Path:
+    """Path of the label file for the given options.
+
+    Args:
+        a: Parsed label options.
+
+    Returns:
+        ``data/<dataset>/labels/<tag>.pt``.
+    """
     return dataset_folder(a.dataset, a.data_root) / "labels" / f"{a.tag or label_tag(a)}.pt"
 
 
 def stratified_pairs(B: torch.Tensor, n_pairs: int, seed: int,
                      edges: tuple[float, ...] = (0.0, 0.35, 0.7, 1.0001)) -> np.ndarray:
-    """Pairs drawn evenly from value bins, so rare high-similarity pairs are
-    represented (with Gödel semantics nearly all random pairs have B = 0)."""
+    """Pairs drawn evenly from value bins.
+
+    Rare high-similarity pairs are then represented; with Gödel semantics nearly
+    all random pairs have B = 0.
+
+    Args:
+        B: Reference matrix (k, k).
+        n_pairs: Total number of pairs (split evenly over bins).
+        seed: Random seed.
+        edges: Bin edges over [0, 1].
+
+    Returns:
+        Int array (p, 2) of local index pairs (i < j).
+    """
     rng = np.random.default_rng(seed)
     iu = np.stack(np.triu_indices(B.shape[0], 1), 1)
     vals = B.numpy()[iu[:, 0], iu[:, 1]]
@@ -91,6 +124,16 @@ def stratified_pairs(B: torch.Tensor, n_pairs: int, seed: int,
 
 
 def value_stats(v: np.ndarray, tau: float = 0.7) -> dict:
+    """Summary statistics of reference values.
+
+    Args:
+        v: Values.
+        tau: Threshold for the positive rate.
+
+    Returns:
+        Dict with ``n``, ``mean``, ``std``, ``frac_zero``, ``frac_pos`` and
+        ``quantiles`` (10/25/50/75/90 %).
+    """
     v = np.asarray(v, dtype=np.float64)
     return {"n": int(len(v)), "mean": float(v.mean()), "std": float(v.std()),
             "frac_zero": float((v == 0).mean()), "frac_pos": float((v >= tau).mean()),
@@ -98,6 +141,22 @@ def value_stats(v: np.ndarray, tau: float = 0.7) -> dict:
 
 
 def _reference(mode: str, kg, labels, centers: np.ndarray, a, full_cache: dict) -> tuple[torch.Tensor, dict]:
+    """Compute reference values among ``centers`` with the requested mode.
+
+    Args:
+        mode: ``"local"``, ``"induced"`` or ``"full"``.
+        kg: The knowledge graph.
+        labels: Full-graph proposition degrees, or None.
+        centers: Entities whose pairwise values are needed.
+        a: Parsed label options.
+        full_cache: Shared cache so the full-graph fixpoint is computed once.
+
+    Returns:
+        ``(B, info)``: the reference matrix and a dict with timing and details.
+
+    Raises:
+        ValueError: If ``mode`` is unknown.
+    """
     kw = dict(semantics=a.semantics, discount=a.discount)
     if mode == "local":
         ref = local_reference(kg.num_entities, kg.triples, kg.weights, kg.num_relations, labels, centers,
@@ -131,6 +190,16 @@ def _reference(mode: str, kg, labels, centers: np.ndarray, a, full_cache: dict) 
 
 
 def generate(a: argparse.Namespace) -> Path:
+    """Stage 1: compute supervision labels and evaluation references.
+
+    Skips the computation if the label file exists (unless ``a.force``).
+
+    Args:
+        a: Parsed label options.
+
+    Returns:
+        Path of the saved label file.
+    """
     out = label_path(a)
     if out.exists() and not a.force:
         print(f"labels exist: {out}")
@@ -160,6 +229,18 @@ def generate(a: argparse.Namespace) -> Path:
     timing["test_reference"] = test_info["seconds"]
 
     def pack(B: torch.Tensor, entities: np.ndarray, n_pairs: int, seed: int, info: dict) -> dict:
+        """Bundle a val/test block with uniform and stratified pairs.
+
+        Args:
+            B: Reference matrix among the block's entities.
+            entities: Entity ids of the block.
+            n_pairs: Number of pairs per pair set.
+            seed: Random seed.
+            info: Reference metadata.
+
+        Returns:
+            Dict stored under ``"val"`` or ``"test"`` in the label file.
+        """
         uni = sample_pairs(len(entities), n_pairs, seed)
         strat = stratified_pairs(B, n_pairs, seed)
         return {"entities": entities, "B": B.to(torch.float32), "pairs_uniform": uni,
@@ -199,6 +280,7 @@ def generate(a: argparse.Namespace) -> Path:
 
 
 def main() -> None:
+    """Command-line entry point for stage 1."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_label_args(ap)
     generate(ap.parse_args())

@@ -45,32 +45,95 @@ DEFAULT_CHUNK = 1 << 24   # elements per temporary block (64 MB in float32)
 # --------------------------------------------------------------------------- Gödel algebra
 
 def godel_tnorm(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Gödel t-norm x ⊗ y = min(x, y).
+
+    Args:
+        x: First operand.
+        y: Second operand (broadcastable with ``x``).
+
+    Returns:
+        Element-wise minimum.
+    """
     return torch.minimum(x, y)
 
 
 def godel_impl(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """x ⇒ y = 1 if x <= y else y."""
+    """Gödel implication x ⇒ y = 1 if x <= y else y.
+
+    Args:
+        x: Antecedent.
+        y: Consequent (broadcastable with ``x``).
+
+    Returns:
+        Element-wise implication degree.
+    """
     return torch.where(x <= y, torch.ones_like(y), y)
 
 
 def godel_equiv(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """x ⇔ y = (x ⇒ y) ⊗ (y ⇒ x) = 1 if x == y else min(x, y)."""
+    """Gödel bi-implication x ⇔ y = (x ⇒ y) ⊗ (y ⇒ x).
+
+    Equals 1 if x == y, else min(x, y).
+
+    Args:
+        x: First operand.
+        y: Second operand.
+
+    Returns:
+        Element-wise equivalence degree.
+    """
     return torch.minimum(godel_impl(x, y), godel_impl(y, x))
 
 
 def lukasiewicz_tnorm(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Łukasiewicz t-norm max(0, x + y - 1).
+
+    Args:
+        x: First operand.
+        y: Second operand.
+
+    Returns:
+        Element-wise t-norm.
+    """
     return (x + y - 1.0).clamp(min=0.0)
 
 
 def lukasiewicz_impl(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Łukasiewicz implication min(1, 1 - x + y).
+
+    Args:
+        x: Antecedent.
+        y: Consequent.
+
+    Returns:
+        Element-wise implication degree.
+    """
     return (1.0 - x + y).clamp(max=1.0)
 
 
 def product_tnorm(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Product (Goguen) t-norm x · y.
+
+    Args:
+        x: First operand.
+        y: Second operand.
+
+    Returns:
+        Element-wise product.
+    """
     return x * y
 
 
 def product_impl(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Product (Goguen) implication: 1 if x <= y else y / x.
+
+    Args:
+        x: Antecedent.
+        y: Consequent.
+
+    Returns:
+        Element-wise implication degree.
+    """
     return torch.where(x <= y, torch.ones_like(y), y / x.clamp(min=1e-12))
 
 
@@ -85,7 +148,13 @@ SEMANTICS = {
 
 @dataclass
 class TransitionSystem:
-    """FLTS view of a fuzzy KG: entities = states, relations = actions."""
+    """FLTS view of a fuzzy KG: entities are states, relations are actions.
+
+    Attributes:
+        n: Number of states.
+        num_relations: Number of actions.
+        rel_edges: One ``(src, dst, w)`` tensor triple per non-empty action.
+    """
     n: int
     num_relations: int
     rel_edges: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = field(default_factory=list)
@@ -93,6 +162,20 @@ class TransitionSystem:
     @classmethod
     def from_triples(cls, n: int, triples: np.ndarray, weights: np.ndarray, num_relations: int,
                      device: str | torch.device = "cpu") -> "TransitionSystem":
+        """Build the transition system from KG triples.
+
+        Transitions with degree 0 are dropped, since δ = 0 imposes no constraint.
+
+        Args:
+            n: Number of states.
+            triples: Int array (m, 3) of (head, relation, tail).
+            weights: Degrees δ(h, r, t), shape (m,).
+            num_relations: Number of relation types.
+            device: Torch device for the edge tensors.
+
+        Returns:
+            The transition system.
+        """
         ts = cls(n=n, num_relations=num_relations)
         triples = np.asarray(triples)
         weights = np.asarray(weights, dtype=np.float32)
@@ -113,6 +196,7 @@ class TransitionSystem:
 
     @property
     def num_transitions(self) -> int:
+        """Total number of transitions with positive degree."""
         return sum(len(s) for s, _, _ in self.rel_edges)
 
 
@@ -122,12 +206,26 @@ def build_state_labels(n: int, triples: np.ndarray, weights: np.ndarray, num_rel
                        mode: str = "inout") -> np.ndarray | None:
     """Fuzzy propositions L(s, p) derived from the graph.
 
-    none   no propositions, L(s,t) = 1
-    out    p_r^out(s) = max_t w(s, r, t)
-    in     p_r^in(s)  = max_h w(h, r, s)
-    inout  both (default): without incoming propositions every sink entity
-           would be bisimilar to every other sink, which is uninformative for
-           KGs where many entities only appear as tails.
+    Modes:
+        none: No propositions; L(s, t) = 1.
+        out: p_r^out(s) = max_t w(s, r, t).
+        in: p_r^in(s) = max_h w(h, r, s).
+        inout: Both (default).  Without incoming propositions every sink entity
+            would be bisimilar to every other sink, which is uninformative for
+            KGs where many entities only appear as tails.
+
+    Args:
+        n: Number of entities.
+        triples: Int array (m, 3) of (head, relation, tail).
+        weights: Degrees, shape (m,).
+        num_relations: Number of relation types.
+        mode: One of the modes above.
+
+    Returns:
+        Float32 array (n, P) of proposition degrees, or None for ``none``.
+
+    Raises:
+        ValueError: If ``mode`` is unknown.
     """
     if mode == "none":
         return None
@@ -148,12 +246,20 @@ def build_state_labels(n: int, triples: np.ndarray, weights: np.ndarray, num_rel
 
 def label_similarity(labels: np.ndarray | torch.Tensor | None, n: int,
                      device: str | torch.device = "cpu") -> torch.Tensor | None:
-    """L(s,t) = 1/|P| Σ_p (L(s,p) ⇔ L(t,p)).
+    """State-label similarity L(s, t) = 1/|P| Σ_p (L(s, p) ⇔ L(t, p)).
 
-    Propositions are sparse, so the sum splits into pairs where both degrees
-    are 0 (contribute 1; counted with one matrix product) and pairs where both
-    are positive (handled per proposition).  Pairs with exactly one zero
-    contribute min(x, 0) = 0.
+    Propositions are sparse, so the sum splits into pairs where both degrees are
+    0 (contribute 1; counted with one matrix product) and pairs where both are
+    positive (handled per proposition).  Pairs with exactly one zero contribute
+    min(x, 0) = 0.
+
+    Args:
+        labels: Proposition degrees (n, P), or None.
+        n: Number of states.
+        device: Torch device.
+
+    Returns:
+        Float tensor (n, n) in [0, 1], or None if ``labels`` is None.
     """
     if labels is None:
         return None
@@ -179,7 +285,20 @@ def label_similarity(labels: np.ndarray | torch.Tensor | None, n: int,
 
 def _forward_half(R: torch.Tensor, ts: TransitionSystem, chunk: int,
                   semantics: str = "godel") -> torch.Tensor:
-    """fwd[s,t] = min_a min_{(s,a,s')} δ ⇒ max_{(t,a,t')} δ ⊗ R[s',t']."""
+    """Forward matching term of Eq. (1).
+
+    fwd[s, t] = min_a min_{(s,a,s')} δ ⇒ max_{(t,a,t')} δ ⊗ R[s', t'],
+    computed per relation over transitions only, in O(|T| · n).
+
+    Args:
+        R: Current relation matrix (n, n).
+        ts: Transition system.
+        chunk: Maximum number of elements per temporary block.
+        semantics: Key of ``SEMANTICS``.
+
+    Returns:
+        Tensor (n, n) with the forward term.
+    """
     tnorm, impl = SEMANTICS[semantics]
     n = ts.n
     out = torch.ones(n, n, dtype=R.dtype, device=R.device)
@@ -202,8 +321,23 @@ def _forward_half(R: torch.Tensor, ts: TransitionSystem, chunk: int,
 def bisimulation_operator(R: torch.Tensor, ts: TransitionSystem, L: torch.Tensor | None = None,
                           symmetric: bool = False, chunk: int = DEFAULT_CHUNK,
                           semantics: str = "godel", discount: float = 1.0) -> torch.Tensor:
-    """One application of F (Eq. 1).  ``symmetric=True`` skips the second pass
-    when R is known to be symmetric (then the backward term is fwd^T)."""
+    """One application of the bisimulation operator F (Eq. 1).
+
+    With ``discount`` λ < 1 the matching term becomes (1 - λ) + λ · min(fwd, bwd).
+
+    Args:
+        R: Current relation matrix (n, n).
+        ts: Transition system.
+        L: State-label similarity (n, n), or None for L ≡ 1.
+        symmetric: Skip the backward pass when R is known to be symmetric
+            (the backward term is then fwd^T).
+        chunk: Maximum number of elements per temporary block.
+        semantics: Key of ``SEMANTICS``; the paper uses ``"godel"``.
+        discount: λ in (0, 1]; 1 recovers Eq. (1).
+
+    Returns:
+        F(R), a tensor (n, n).
+    """
     fwd = _forward_half(R, ts, chunk, semantics)
     bwd = fwd.T if symmetric else _forward_half(R.T.contiguous(), ts, chunk, semantics).T
     out = torch.minimum(fwd, bwd)
@@ -216,6 +350,15 @@ def bisimulation_operator(R: torch.Tensor, ts: TransitionSystem, L: torch.Tensor
 
 @dataclass
 class BisimulationResult:
+    """Result of Algorithm 1.
+
+    Attributes:
+        B: Final relation matrix (n, n).
+        iterations: Number of applications of F.
+        converged: Whether the stopping rule was met.
+        deltas: max |B(k+1) - B(k)| after every iteration.
+        seconds: Wall-clock time.
+    """
     B: torch.Tensor
     iterations: int
     converged: bool
@@ -229,9 +372,22 @@ def compute_bisimulation(ts: TransitionSystem, L: torch.Tensor | None = None, ep
     """Algorithm 1: iterate F from B ≡ 1 until max |B(k+1) - B(k)| < eps.
 
     ``max_iter = None`` (default) runs until the stopping rule holds, as in the
-    paper; the iteration is monotone and bounded, so it terminates.  With ``max_iter = k`` and ``eps = 0`` this returns the depth-k
-    approximation B^(k) ≥ B*, which local_sampling uses for exact local
-    references.
+    paper; the iteration is monotone and bounded, so it terminates.  With
+    ``max_iter = k`` and ``eps = 0`` this returns the depth-k approximation
+    B^(k) >= B*, which local_sampling uses for exact local references.
+
+    Args:
+        ts: Transition system.
+        L: State-label similarity (n, n), or None.
+        eps: Stopping tolerance.
+        max_iter: Optional cap on the number of iterations.
+        chunk: Maximum number of elements per temporary block.
+        semantics: Key of ``SEMANTICS``.
+        discount: λ in (0, 1].
+        verbose: Print the update error of every iteration.
+
+    Returns:
+        A ``BisimulationResult``.
     """
     t0 = time.perf_counter()
     device = L.device if L is not None else (ts.rel_edges[0][0].device if ts.rel_edges else "cpu")
@@ -258,7 +414,24 @@ def bisimulation_from_triples(n: int, triples: np.ndarray, weights: np.ndarray, 
                               label_mode: str = "inout", eps: float = 1e-4, max_iter: int | None = None,
                               device: str = "cpu", semantics: str = "godel", discount: float = 1.0,
                               verbose: bool = False) -> BisimulationResult:
-    """Convenience wrapper: labels + transition system + Algorithm 1."""
+    """Convenience wrapper: state labels, transition system and Algorithm 1.
+
+    Args:
+        n: Number of entities.
+        triples: Int array (m, 3) of (head, relation, tail).
+        weights: Degrees, shape (m,).
+        num_relations: Number of relation types.
+        label_mode: Proposition mode, see ``build_state_labels``.
+        eps: Stopping tolerance.
+        max_iter: Optional cap on the number of iterations.
+        device: Torch device.
+        semantics: Key of ``SEMANTICS``.
+        discount: λ in (0, 1].
+        verbose: Print the update error of every iteration.
+
+    Returns:
+        A ``BisimulationResult`` whose ``seconds`` include label construction.
+    """
     t0 = time.perf_counter()
     ts = TransitionSystem.from_triples(n, triples, weights, num_relations, device=device)
     L = label_similarity(build_state_labels(n, triples, weights, num_relations, label_mode), n, device)
@@ -272,7 +445,18 @@ def bisimulation_from_triples(n: int, triples: np.ndarray, weights: np.ndarray, 
 
 def naive_operator(R: np.ndarray, delta: np.ndarray, L: np.ndarray | None,
                    semantics: str = "godel", discount: float = 1.0) -> np.ndarray:
-    """Literal transcription of Eq. (1); delta has shape (|Act|, n, n)."""
+    """Literal transcription of Eq. (1), used as a test oracle.
+
+    Args:
+        R: Relation matrix (n, n).
+        delta: Transition degrees of shape (|Act|, n, n).
+        L: State-label similarity (n, n), or None.
+        semantics: Key of ``SEMANTICS``.
+        discount: λ in (0, 1].
+
+    Returns:
+        F(R) as a NumPy array (n, n).
+    """
     A, n, _ = delta.shape
     tn, im = SEMANTICS[semantics]
     tnorm = lambda x, y: float(tn(torch.tensor(float(x)), torch.tensor(float(y))))
@@ -294,6 +478,18 @@ def naive_operator(R: np.ndarray, delta: np.ndarray, L: np.ndarray | None,
 
 
 def selftest(trials: int = 20, seed: int = 0) -> None:
+    """Check the vectorised operator against ``naive_operator`` on random FLTSs.
+
+    Covers every semantics and discounts 1 and 0.8, and checks that Algorithm 1
+    returns a symmetric, reflexive fixpoint.
+
+    Args:
+        trials: Number of random transition systems.
+        seed: Random seed.
+
+    Raises:
+        AssertionError: If any check fails.
+    """
     rng = np.random.default_rng(seed)
     for trial in range(trials):
         n, A = int(rng.integers(3, 8)), int(rng.integers(1, 4))
@@ -328,6 +524,7 @@ def selftest(trials: int = 20, seed: int = 0) -> None:
 
 
 def main() -> None:
+    """Command-line entry point: run the self-test and/or time Algorithm 1 on a sample."""
     ap = argparse.ArgumentParser(description="Exact fuzzy bisimulation (Algorithm 1).")
     ap.add_argument("--selftest", action="store_true", help="check against a literal Eq. (1)")
     ap.add_argument("--dataset", help="time Algorithm 1 on a degree-aware sample of this KG")

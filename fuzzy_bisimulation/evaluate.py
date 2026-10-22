@@ -38,6 +38,20 @@ from .train import DEFAULT_SEMANTIC, eval_pairs, kg_for_labels, load_model
 # --------------------------------------------------------------------------- metrics
 
 def regression_metrics(y: np.ndarray, p: np.ndarray, tau: float = 0.7) -> dict:
+    """Accuracy metrics of predicted against reference degrees.
+
+    F1 binarises both at ``tau`` (Section V-C).
+
+    Args:
+        y: Reference values.
+        p: Predictions.
+        tau: Threshold for precision / recall / F1.
+
+    Returns:
+        Dict with ``mae``, ``rmse``, ``f1``, ``precision``, ``recall``,
+        ``pos_rate``, ``confusion`` and, when both inputs vary, ``pearson`` and
+        ``spearman``.
+    """
     y, p = np.asarray(y, dtype=np.float64), np.asarray(p, dtype=np.float64)
     yt, pt = y >= tau, p >= tau
     tp, fp, fn = int((yt & pt).sum()), int((~yt & pt).sum()), int((yt & ~pt).sum())
@@ -55,7 +69,15 @@ def regression_metrics(y: np.ndarray, p: np.ndarray, tau: float = 0.7) -> dict:
 
 
 def score_both(part: dict, predict) -> dict:
-    """Metrics on uniform and stratified pair sets of a val/test block."""
+    """Metrics on the uniform and stratified pair sets of a val/test block.
+
+    Args:
+        part: The ``"val"`` or ``"test"`` block of a label file.
+        predict: Function mapping global entity pairs (p, 2) to predictions (p,).
+
+    Returns:
+        ``{"uniform": metrics, "stratified": metrics}``.
+    """
     res = {}
     for which in ("uniform", "stratified"):
         pairs, y = eval_pairs(part, which)
@@ -66,6 +88,16 @@ def score_both(part: dict, predict) -> dict:
 # --------------------------------------------------------------------------- learned model
 
 def evaluate_checkpoint(ckpt_path: Path, device: str = "cpu") -> dict:
+    """Evaluate a trained model: accuracy on val/test and the cost report.
+
+    Args:
+        ckpt_path: Checkpoint file.
+        device: Torch device.
+
+    Returns:
+        Dict with configs, α, ``test`` / ``val`` metrics, reference statistics
+        and ``cost``.
+    """
     model, g, ckpt, payload = load_model(ckpt_path, device)
     t0 = time.perf_counter()
     with torch.no_grad():
@@ -73,6 +105,14 @@ def evaluate_checkpoint(ckpt_path: Path, device: str = "cpu") -> dict:
     embed_seconds = time.perf_counter() - t0
 
     def predict(pairs: np.ndarray) -> np.ndarray:
+        """Predict degrees for global entity pairs from the precomputed embeddings.
+
+        Args:
+            pairs: Int array (p, 2).
+
+        Returns:
+            Predictions (p,).
+        """
         p = torch.as_tensor(pairs, device=device)
         with torch.no_grad():
             return model.similarity(z[p[:, 0]], z[p[:, 1]]).cpu().numpy()
@@ -88,7 +128,17 @@ def evaluate_checkpoint(ckpt_path: Path, device: str = "cpu") -> dict:
 
 
 def measure_query_seconds(z: torch.Tensor, n_queries: int = 20000, seed: int = 0) -> dict:
-    """Time per pairwise query on precomputed embeddings: batched and one by one."""
+    """Time per pairwise query on precomputed embeddings.
+
+    Args:
+        z: Embeddings (n, d).
+        n_queries: Number of random pairs.
+        seed: Random seed.
+
+    Returns:
+        ``{"batched": s, "single": s}``: seconds per query when vectorised and
+        when issued one by one.
+    """
     gen = torch.Generator().manual_seed(seed)
     i = torch.randint(0, len(z), (n_queries,), generator=gen).to(z.device)
     j = torch.randint(0, len(z), (n_queries,), generator=gen).to(z.device)
@@ -105,6 +155,19 @@ def measure_query_seconds(z: torch.Tensor, n_queries: int = 20000, seed: int = 0
 
 
 def cost_report(payload: dict, ckpt: dict, z: torch.Tensor, embed_seconds: float) -> dict:
+    """Offline / online cost split and the break-even number of queries.
+
+    Args:
+        payload: Loaded label file (stage-1 timings).
+        ckpt: Loaded checkpoint (training and semantic timings).
+        z: Precomputed embeddings.
+        embed_seconds: Time to compute ``z``.
+
+    Returns:
+        Dict with offline stage times, per-query times, the exact-reference cost
+        for the test entities and ``break_even_queries`` (None if the learned
+        query is not cheaper per pair).
+    """
     t = payload["timing"]
     offline = {"sampling": t["sampling"], "train_reference": t["train_reference"],
                "semantic_embedding": ckpt["timing"]["semantic_embedding"],
@@ -133,7 +196,18 @@ def cost_report(payload: dict, ckpt: dict, z: torch.Tensor, embed_seconds: float
 # --------------------------------------------------------------------------- zero-shot baselines
 
 def baseline_scores(labels_path: Path, semantic: str = "tfidf") -> dict:
-    """Methods that need no training on bisimulation targets."""
+    """Scores of methods that need no training on bisimulation targets.
+
+    Structural-feature cosine, semantic cosine ("LLM similarity") and
+    neighbourhood Jaccard.
+
+    Args:
+        labels_path: Label file.
+        semantic: Encoder spec for the semantic cosine.
+
+    Returns:
+        ``{method: {"test": score_both(...)}}``.
+    """
     payload = torch.load(labels_path, weights_only=False)
     kg = kg_for_labels(payload)
     out = {}
@@ -143,6 +217,15 @@ def baseline_scores(labels_path: Path, semantic: str = "tfidf") -> dict:
         embeddings[f"semantic_cosine[{semantic}]"] = torch.as_tensor(sem)   # "LLM Similarity"
     for name, E in embeddings.items():
         def predict(pairs, E=E):
+            """Cosine similarity of embedding rows mapped to [0, 1].
+
+            Args:
+                pairs: Global entity pairs (p, 2).
+                E: Embedding matrix (bound per method).
+
+            Returns:
+                Predictions (p,).
+            """
             p = torch.as_tensor(pairs)
             return ((F.cosine_similarity(E[p[:, 0]], E[p[:, 1]], dim=-1) + 1) / 2).numpy()
         out[name] = {"test": score_both(payload["test"], predict)}
@@ -157,6 +240,14 @@ def baseline_scores(labels_path: Path, semantic: str = "tfidf") -> dict:
     size = np.asarray(X.sum(1)).ravel()
 
     def jaccard(pairs):
+        """Neighbourhood Jaccard over (direction, relation, neighbour) keys.
+
+        Args:
+            pairs: Global entity pairs (p, 2).
+
+        Returns:
+            Similarities (p,).
+        """
         inter = np.asarray(X[pairs[:, 0]].multiply(X[pairs[:, 1]]).sum(1)).ravel()
         union = size[pairs[:, 0]] + size[pairs[:, 1]] - inter
         return np.where(union > 0, inter / np.maximum(union, 1), 1.0)
@@ -169,15 +260,25 @@ def baseline_scores(labels_path: Path, semantic: str = "tfidf") -> dict:
 def assumption_checks(ckpt_path: Path, device: str = "cpu", n_pairs: int = 20000) -> dict:
     """Empirical counterparts of Assumptions 1-3 and Theorem 1 (Section IV-G).
 
-    eps_s   E|B*_s - B| on training pairs, B = exact local full-graph reference
-            (0 by construction when the labels already are local references)
-    eps_nn  E|B_hat - B*_s| on training pairs (fit to the supervision)
-    total   E|B_hat - B| on training pairs, and on held-out test pairs
-    L_phi   Lipschitz constant of the semantic projection: the spectral norm of
-            W_proj (a global bound) and the largest observed ratio
-            ||phi_proj(a) - phi_proj(b)|| / ||phi(a) - phi(b)||.  Assumption 3 as
-            printed compares against ||e_i - e_j||, which is undefined for
-            entities; phi is the meaningful input space.
+    * eps_s: E|B*_s - B| on training pairs, B = exact local full-graph
+      reference (0 by construction when the labels already are local references).
+    * eps_nn: E|B̂ - B*_s| on training pairs (fit to the supervision).
+    * total: E|B̂ - B| on training pairs and on held-out test pairs.
+    * L_phi: Lipschitz constant of the semantic projection, as the spectral
+      norm of W_proj (a global bound) and the largest observed ratio
+      ||ϕ_proj(a) - ϕ_proj(b)|| / ||ϕ(a) - ϕ(b)||.  Assumption 3 as printed
+      compares against ||e_i - e_j||, which is undefined for entities; ϕ is the
+      meaningful input space.
+
+    Args:
+        ckpt_path: Checkpoint file.
+        device: Torch device.
+        n_pairs: Number of sampled pairs.
+
+    Returns:
+        Dict with ``eps_s``, ``eps_nn``, train / test errors, the Theorem 1 bound,
+        the generalisation gap and, with a semantic channel,
+        ``lipschitz_projection``.
     """
     model, g, ckpt, payload = load_model(ckpt_path, device)
     cfg = payload["config"]
@@ -237,8 +338,19 @@ def assumption_checks(ckpt_path: Path, device: str = "cpu", n_pairs: int = 20000
 
 def latency_vs_dimension(dims=(16, 32, 64, 128, 256, 512, 1024, 2048), n_entities: int = 50_000,
                          n_queries: int = 100_000, repeats: int = 5) -> list[dict]:
-    """Per-query cost of cosine similarity on precomputed embeddings as d grows.
-    Shows the O(d) dependence hidden by 'constant-time inference'."""
+    """Per-query cosine cost on precomputed embeddings as d grows.
+
+    Shows the O(d) dependence hidden by 'constant-time inference'.
+
+    Args:
+        dims: Embedding dimensions to time.
+        n_entities: Number of random embeddings.
+        n_queries: Queries per timing.
+        repeats: Repetitions; the best time is kept.
+
+    Returns:
+        List of ``{"dim": d, "seconds_per_query": s}``.
+    """
     rows = []
     for d in dims:
         z = torch.randn(n_entities, d)
@@ -251,7 +363,15 @@ def latency_vs_dimension(dims=(16, 32, 64, 128, 256, 512, 1024, 2048), n_entitie
 # --------------------------------------------------------------------------- statistics
 
 def paired_tests(a: dict[str, list[float]], b: dict[str, list[float]]) -> dict:
-    """Paired t-tests per metric over matched runs, Benjamini-Hochberg corrected."""
+    """Paired t-tests per metric over matched runs, Benjamini-Hochberg corrected.
+
+    Args:
+        a: ``{metric: values over seeds}`` of the reference method.
+        b: The same for the compared method.
+
+    Returns:
+        ``{metric: {"p_raw", "p_bh", "mean_diff"}}`` for metrics present in both.
+    """
     names = [m for m in a if m in b and len(a[m]) == len(b[m]) and len(a[m]) > 1]
     raw = [float(stats.ttest_rel(a[m], b[m]).pvalue) for m in names]
     raw = [1.0 if np.isnan(p) else p for p in raw]
@@ -261,10 +381,20 @@ def paired_tests(a: dict[str, list[float]], b: dict[str, list[float]]) -> dict:
 
 
 def fmt_metrics(res: dict, keys=("mae", "rmse", "f1", "spearman")) -> str:
+    """Format selected metrics on one line.
+
+    Args:
+        res: Metrics dict.
+        keys: Metric names to include if present.
+
+    Returns:
+        ``"mae=... rmse=..."``.
+    """
     return "  ".join(f"{k}={res[k]:.4f}" for k in keys if k in res)
 
 
 def main() -> None:
+    """Command-line entry point for evaluation."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--checkpoint", type=Path, nargs="*", default=[])
     ap.add_argument("--labels", type=Path, help="for --baselines")

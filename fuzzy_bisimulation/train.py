@@ -56,12 +56,28 @@ DEFAULT_SEMANTIC = "st:all-mpnet-base-v2"                      # open 768-d stan
 # --------------------------------------------------------------------------- data for training
 
 def kg_for_labels(payload: dict) -> FuzzyKG:
+    """Reload the knowledge graph a label file was generated from.
+
+    Args:
+        payload: Loaded label file.
+
+    Returns:
+        The ``FuzzyKG`` with the same dataset, confidence scheme and seed.
+    """
     cfg = payload["config"]
     return load_kg(cfg["dataset"], Path(cfg["data_root"]), confidence=cfg["confidence"], seed=cfg["seed"])
 
 
 def eval_pairs(part: dict, which: str = "both") -> tuple[np.ndarray, np.ndarray]:
-    """Global entity pairs and reference values of a val/test block."""
+    """Global entity pairs and reference values of a val/test block.
+
+    Args:
+        part: The ``"val"`` or ``"test"`` block of a label file.
+        which: ``"uniform"``, ``"stratified"`` or ``"both"``.
+
+    Returns:
+        ``(pairs, values)``: global entity-id pairs (p, 2) and their references (p,).
+    """
     keys = {"uniform": ["pairs_uniform"], "stratified": ["pairs_stratified"],
             "both": ["pairs_uniform", "pairs_stratified"]}[which]
     pairs = np.concatenate([part[k] for k in keys])
@@ -70,8 +86,17 @@ def eval_pairs(part: dict, which: str = "both") -> tuple[np.ndarray, np.ndarray]
 
 
 def jaccard_targets(kg: FuzzyKG, entities: np.ndarray) -> torch.Tensor:
-    """Neighbourhood Jaccard over (direction, relation, neighbour) keys: the
-    'w/o symbolic supervision' ablation target."""
+    """Neighbourhood Jaccard similarity, the 'w/o symbolic supervision' target.
+
+    Keys are (direction, relation, neighbour) triples.
+
+    Args:
+        kg: The knowledge graph.
+        entities: Training entities.
+
+    Returns:
+        Float tensor (k, k) of Jaccard similarities among ``entities``.
+    """
     import scipy.sparse as sp
     n, R = kg.num_entities, kg.num_relations
     h, r, t = kg.triples.T
@@ -86,7 +111,17 @@ def jaccard_targets(kg: FuzzyKG, entities: np.ndarray) -> torch.Tensor:
 
 
 class PairSampler:
+    """Random training pairs drawn from the training-entity matrix."""
     def __init__(self, B: torch.Tensor, mode: str, tau: float, seed: int):
+        """Create the sampler.
+
+        Args:
+            B: Target matrix among training entities (k, k).
+            mode: ``"uniform"``, or ``"balanced"`` to draw half of every batch from
+                pairs with target >= ``tau``.
+            tau: Positive threshold for balanced sampling.
+            seed: Random seed.
+        """
         self.B, self.mode, self.n = B, mode, B.shape[0]
         self.gen = torch.Generator().manual_seed(seed)
         if mode == "balanced":
@@ -94,6 +129,14 @@ class PairSampler:
             self.pos = pos if len(pos) else None
 
     def sample(self, k: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Draw a batch of pairs with i != j.
+
+        Args:
+            k: Batch size.
+
+        Returns:
+            ``(i, j)`` local index tensors of shape (k,).
+        """
         i = torch.randint(0, self.n, (k,), generator=self.gen)
         j = (i + torch.randint(1, self.n, (k,), generator=self.gen)) % self.n     # j != i
         if self.mode == "balanced" and self.pos is not None:
@@ -106,6 +149,11 @@ class PairSampler:
 # --------------------------------------------------------------------------- training
 
 def add_train_args(ap: argparse.ArgumentParser) -> None:
+    """Register the training command-line options.
+
+    Args:
+        ap: Parser to extend.
+    """
     ap.add_argument("--labels", type=Path, required=True)
     ap.add_argument("--encoder", default="rgcn", choices=ENCODERS)
     ap.add_argument("--semantic", default=DEFAULT_SEMANTIC,
@@ -138,6 +186,15 @@ def add_train_args(ap: argparse.ArgumentParser) -> None:
 
 
 def model_kwargs(a: argparse.Namespace, g: GraphTensors) -> dict:
+    """Constructor arguments of ``BisimNet`` for the given options.
+
+    Args:
+        a: Parsed training options.
+        g: Graph tensors (used for feature, relation and semantic dimensions).
+
+    Returns:
+        Keyword arguments for ``BisimNet``.
+    """
     alpha = a.alpha if a.alpha == "learn" else float(a.alpha)
     return dict(encoder=a.encoder, feat_dim=g.x.shape[1], num_relations=g.num_relations,
                 sem_dim=None if g.sem is None else g.sem.shape[1], d=a.dim, layers=a.layers,
@@ -146,7 +203,14 @@ def model_kwargs(a: argparse.Namespace, g: GraphTensors) -> dict:
 
 
 def deviations(a: argparse.Namespace) -> str:
-    """Short tag of the options that depart from the paper ('paper' if none)."""
+    """Short tag of the options that depart from the paper.
+
+    Args:
+        a: Parsed training options.
+
+    Returns:
+        Dash-separated flags, or ``"paper"`` if none.
+    """
     flags = [f"b{a.bases}" if a.bases else "", "inv" if a.inverse else "", "ew" if a.edge_weight else "",
              "nf" if a.normalize_fusion else "", "" if a.final_relu else "nofr",
              f"spe{a.steps_per_epoch}" if a.steps_per_epoch else "",
@@ -155,12 +219,35 @@ def deviations(a: argparse.Namespace) -> str:
 
 
 def checkpoint_name(a: argparse.Namespace) -> str:
+    """Checkpoint file name for the given options.
+
+    Args:
+        a: Parsed training options.
+
+    Returns:
+        Name encoding dataset, label tag, encoder, semantic model, α, target,
+        pair sampling, deviations and seed.
+    """
     sem = a.semantic.replace(":", "-").replace("/", "-")
     return (f"{a.labels.parent.parent.name}__{a.labels.stem}__{a.encoder}_{sem}_a{a.alpha}"
             f"_{a.target}_{a.pair_sampling}_{deviations(a)}_s{a.seed}")
 
 
 def train(a: argparse.Namespace) -> Path:
+    """Stages 2-3: train the approximator with Algorithm 2.
+
+    MSE to the reference values, Adam with lr decay 0.95 every 10 epochs, and
+    early stopping on validation loss.  The best state is saved.
+
+    Args:
+        a: Parsed training options.
+
+    Returns:
+        Path of the saved checkpoint.
+
+    Raises:
+        ValueError: If balanced pair sampling is used without ``--steps-per-epoch``.
+    """
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     payload = torch.load(a.labels, weights_only=False)
@@ -178,6 +265,11 @@ def train(a: argparse.Namespace) -> Path:
         sampler = PairSampler(B_train, a.pair_sampling, a.tau, a.seed)
 
         def batches():
+            """Yield ``steps_per_epoch`` random batches of training pairs.
+
+            Yields:
+                ``(i, j)`` local index tensors.
+            """
             for _ in range(a.steps_per_epoch):
                 yield sampler.sample(a.batch_size)
     else:
@@ -189,6 +281,11 @@ def train(a: argparse.Namespace) -> Path:
         gen = torch.Generator().manual_seed(a.seed)
 
         def batches():
+            """Yield one shuffled pass over the training pair set P (Algorithm 2, line 5).
+
+            Yields:
+                ``(i, j)`` local index tensors.
+            """
             perm = torch.randperm(len(P), generator=gen)              # Algorithm 2, line 5
             for k in range(0, len(P), a.batch_size):
                 b = P[perm[k:k + a.batch_size]]
@@ -249,8 +346,16 @@ def train(a: argparse.Namespace) -> Path:
 
 def load_model(ckpt_path: Path, device: str = "cpu", weights: np.ndarray | None = None
                ) -> tuple[BisimNet, GraphTensors, dict, dict]:
-    """Rebuild model + graph tensors from a checkpoint (``weights`` overrides
-    the fuzzy degrees, used for the perturbation experiment)."""
+    """Rebuild the model and graph tensors from a checkpoint.
+
+    Args:
+        ckpt_path: Checkpoint file.
+        device: Torch device.
+        weights: Optional degrees overriding the KG's (perturbation experiment).
+
+    Returns:
+        ``(model, graph, checkpoint, label_payload)``; the model is in eval mode.
+    """
     ckpt = torch.load(ckpt_path, weights_only=False)
     payload = torch.load(ckpt["labels"], weights_only=False)
     cfg = ckpt["config"]
@@ -268,6 +373,7 @@ def load_model(ckpt_path: Path, device: str = "cpu", weights: np.ndarray | None 
 
 
 def main() -> None:
+    """Command-line entry point for training."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_train_args(ap)
     train(ap.parse_args())

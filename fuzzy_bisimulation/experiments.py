@@ -52,6 +52,15 @@ METRICS = ("mae", "rmse", "f1", "spearman")
 # --------------------------------------------------------------------------- helpers
 
 def label_args(common: argparse.Namespace, **over) -> argparse.Namespace:
+    """Stage-1 options for a suite run.
+
+    Args:
+        common: Parsed suite options (shared overrides are copied).
+        **over: Per-variant overrides.
+
+    Returns:
+        Parsed label options.
+    """
     ap = argparse.ArgumentParser()
     add_label_args(ap)
     a = ap.parse_args(["--dataset", common.dataset])
@@ -65,11 +74,21 @@ def label_args(common: argparse.Namespace, **over) -> argparse.Namespace:
 
 
 def train_args(common: argparse.Namespace, labels: Path, **over) -> argparse.Namespace:
+    """Training options for a suite run.
+
+    Args:
+        common: Parsed suite options.
+        labels: Label file.
+        **over: Per-variant overrides.
+
+    Returns:
+        Parsed training options.
+    """
     ap = argparse.ArgumentParser()
     add_train_args(ap)
     a = ap.parse_args(["--labels", str(labels)])
     a.semantic, a.epochs, a.steps_per_epoch = common.semantic, common.epochs, common.steps_per_epoch
-    a.train_pairs = common.train_pairs
+    a.train_pairs, a.patience = common.train_pairs, common.patience
     a.pair_sampling, a.device, a.quiet = common.pair_sampling, common.device, True
     for k, v in over.items():
         setattr(a, k, v)
@@ -77,13 +96,32 @@ def train_args(common: argparse.Namespace, labels: Path, **over) -> argparse.Nam
 
 
 def run_method(common, seed: int, label_over: dict, train_over: dict) -> dict:
+    """Generate labels, train and evaluate one variant for one seed.
+
+    Args:
+        common: Parsed suite options.
+        seed: Random seed.
+        label_over: Stage-1 overrides.
+        train_over: Training overrides.
+
+    Returns:
+        The ``evaluate_checkpoint`` result.
+    """
     labels = generate(label_args(common, seed=seed, **label_over))
     ckpt = train(train_args(common, labels, seed=seed, **train_over))
     return evaluate_checkpoint(ckpt, common.device)
 
 
 def collect(results: list[dict], split: str = "test") -> dict:
-    """{pairset: {metric: [values over seeds]}}"""
+    """Gather metrics over seeds.
+
+    Args:
+        results: ``evaluate_checkpoint`` results, one per seed.
+        split: ``"test"`` or ``"val"``.
+
+    Returns:
+        ``{pairset: {metric: [values over seeds]}}``.
+    """
     out = {}
     for which in ("uniform", "stratified"):
         out[which] = {m: [r[split][which].get(m, float("nan")) for r in results] for m in METRICS}
@@ -91,11 +129,29 @@ def collect(results: list[dict], split: str = "test") -> dict:
 
 
 def mean_std(values: list[float]) -> str:
+    """Format values as ``mean±std`` (or a single value).
+
+    Args:
+        values: Values over seeds.
+
+    Returns:
+        The formatted string.
+    """
     v = np.asarray(values, dtype=float)
     return f"{np.nanmean(v):.3f}±{np.nanstd(v):.3f}" if len(v) > 1 else f"{v[0]:.3f}"
 
 
 def table(rows: dict[str, dict], pairset: str, extra: dict[str, dict] | None = None) -> str:
+    """Markdown table of mean±std metrics per method.
+
+    Args:
+        rows: ``{method: collect(...)}``.
+        pairset: ``"uniform"`` or ``"stratified"``.
+        extra: Unused; kept for call compatibility.
+
+    Returns:
+        The Markdown table.
+    """
     head = f"| Method | {' | '.join(m.upper() for m in METRICS)} |"
     lines = [f"**{pairset} pairs**", "", head, "|" + "---|" * (len(METRICS) + 1)]
     for name, col in rows.items():
@@ -104,6 +160,14 @@ def table(rows: dict[str, dict], pairset: str, extra: dict[str, dict] | None = N
 
 
 def save(common, suite: str, payload: dict, markdown: str) -> None:
+    """Write a suite's JSON and Markdown results and print the table.
+
+    Args:
+        common: Parsed suite options.
+        suite: Suite name.
+        payload: JSON-serialisable results.
+        markdown: Markdown summary.
+    """
     RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
     stem = RESULTS_ROOT / f"{suite}_{common.dataset}"
     stem.with_suffix(".json").write_text(json.dumps(payload, indent=2, default=float))
@@ -114,6 +178,16 @@ def save(common, suite: str, payload: dict, markdown: str) -> None:
 
 def run_grid(common, variants: dict[str, tuple[dict, dict]], suite: str,
              reference: str | None = None) -> None:
+    """Run every variant over all seeds and save tables and paired tests.
+
+    Variants that fail (e.g. an optional encoder is not installed) are skipped.
+
+    Args:
+        common: Parsed suite options.
+        variants: ``{name: (label_overrides, train_overrides)}``.
+        suite: Suite name used for the output files.
+        reference: Variant the others are tested against, or None.
+    """
     raw, rows = {}, {}
     for name, (lo, to) in variants.items():
         print(f"=== {suite}: {name}")
@@ -142,6 +216,11 @@ def run_grid(common, variants: dict[str, tuple[dict, dict]], suite: str,
 # --------------------------------------------------------------------------- suites
 
 def suite_main(common) -> None:
+    """Table V: proposed model against trained and zero-shot baselines.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {
         "Proposed (R-GCN + semantic, a=0.7)": ({}, {}),
         "R-GCN": ({}, {"alpha": "1.0"}),
@@ -160,6 +239,11 @@ def suite_main(common) -> None:
 
 
 def suite_ablation(common) -> None:
+    """Table VIII: component ablations, including the paper's final ReLU.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {
         "Full model": ({}, {}),
         "w/o semantic (a=1)": ({}, {"alpha": "1.0"}),
@@ -174,6 +258,11 @@ def suite_ablation(common) -> None:
 
 
 def suite_sampling(common) -> None:
+    """Table VII: sampling ratio x strategy, plus a γ sweep.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {}
     for ratio in (0.05, 0.1, 0.2):
         for strat in ("random", "degree"):
@@ -184,23 +273,43 @@ def suite_sampling(common) -> None:
 
 
 def suite_alpha(common) -> None:
+    """Fusion-weight sensitivity: α from 0 to 1 and a learned α.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {f"alpha={a:.1f}": ({}, {"alpha": f"{a:.1f}"}) for a in np.linspace(0, 1, 11)}
     variants["alpha=learned"] = ({}, {"alpha": "learn"})
     run_grid(common, variants, "alpha")
 
 
 def suite_encoders(common) -> None:
+    """Semantic encoder comparison over ``common.encoders``.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {f"{e}": ({}, {"semantic": e}) for e in common.encoders}
     run_grid(common, variants, "encoders")
 
 
 def suite_train_ref(common) -> None:
+    """Induced-subgraph supervision (paper) against local exact supervision.
+
+    Args:
+        common: Parsed suite options.
+    """
     variants = {"induced subgraph B*_s (paper)": ({"train_reference": "induced"}, {}),
                 "local exact B^(k)": ({"train_reference": "local"}, {})}
     run_grid(common, variants, "train-ref")
 
 
 def suite_confidence(common) -> None:
+    """Sensitivity to the confidence scheme (Beta(2,2) and alternatives).
+
+    Args:
+        common: Parsed suite options.
+    """
     kg = load_kg(common.dataset)
     schemes = ["beta:2,2", "beta:0.5,0.5", "beta:5,1", "uniform", "crisp", "pathsupport", "relfreq"]
     if kg.given_weights is not None:
@@ -210,6 +319,11 @@ def suite_confidence(common) -> None:
 
 
 def suite_semantics(common) -> None:
+    """Reference-value distribution per semantics and discount (no training).
+
+    Args:
+        common: Parsed suite options.
+    """
     combos = [("godel", 1.0), ("godel", 0.9), ("godel", 0.7), ("godel", 0.5),
               ("lukasiewicz", 1.0), ("lukasiewicz", 0.9), ("lukasiewicz", 0.7), ("product", 1.0)]
     rows, md = {}, [f"# semantics — {common.dataset}\n",
@@ -226,8 +340,15 @@ def suite_semantics(common) -> None:
 
 
 def suite_reference(common) -> None:
-    """Accuracy and cost of local references against the full-graph fixpoint,
-    and the gap between induced-subgraph labels and full-graph values."""
+    """Local references against the full-graph fixpoint, and the eps_s gap.
+
+    Measures the accuracy and cost of local references of increasing depth, and
+    the gap between induced-subgraph labels and full-graph values (Assumption 1).
+    Requires a full-graph run, so it is meant for graphs where that is feasible.
+
+    Args:
+        common: Parsed suite options.
+    """
     a = label_args(common, seed=common.seeds[0])
     kg = load_kg(a.dataset, a.data_root, confidence=a.confidence, seed=a.seed)
     n = kg.num_entities
@@ -278,6 +399,11 @@ def suite_reference(common) -> None:
 
 
 def suite_latency(common) -> None:
+    """Query latency against embedding dimension.
+
+    Args:
+        common: Parsed suite options.
+    """
     rows = latency_vs_dimension()
     md = ["# latency — cosine query on precomputed embeddings\n", "| d | ns / query |", "|---|---|"]
     md += [f"| {r['dim']} | {r['seconds_per_query'] * 1e9:.1f} |" for r in rows]
@@ -285,6 +411,11 @@ def suite_latency(common) -> None:
 
 
 def suite_stability(common) -> None:
+    """Theorem 2: change of predictions under weight perturbations δ.
+
+    Args:
+        common: Parsed suite options.
+    """
     labels = generate(label_args(common, seed=common.seeds[0]))
     ckpt = train(train_args(common, labels, seed=common.seeds[0]))
     payload = torch.load(labels, weights_only=False)
@@ -308,6 +439,13 @@ def suite_stability(common) -> None:
 
 
 def suite_assumptions(common) -> None:
+    """Empirical eps_s, eps_nn, Theorem 1 bound and Lipschitz constant.
+
+    Run for both induced and local supervision.
+
+    Args:
+        common: Parsed suite options.
+    """
     rows, md = {}, [f"# assumptions — {common.dataset}\n",
                     "| supervision | seed | eps_s | eps_nn | bound eps_s+eps_nn | train error | test error | "
                     "L_phi spectral | L_phi max observed |", "|---|---|---|---|---|---|---|---|---|"]
@@ -335,6 +473,7 @@ SUITES = {"main": suite_main, "ablation": suite_ablation, "sampling": suite_samp
 
 
 def main() -> None:
+    """Command-line entry point: run one experiment suite."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("suite", choices=list(SUITES))
     ap.add_argument("--dataset", default="fb15k-237", choices=["fb15k-237", "wn18rr", "yago3-10"])
@@ -354,6 +493,7 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=200)
     ap.add_argument("--steps-per-epoch", type=int, default=0, help="0: full pass over P per epoch (paper)")
     ap.add_argument("--train-pairs", type=int, default=0, help="|P|; 0: all training-entity pairs")
+    ap.add_argument("--patience", type=int, default=10, help="early-stopping patience (epochs)")
     ap.add_argument("--pair-sampling", default="uniform", choices=["uniform", "balanced"])
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     common = ap.parse_args()

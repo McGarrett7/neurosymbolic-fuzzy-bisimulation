@@ -24,6 +24,14 @@ CONVE = "https://raw.githubusercontent.com/TimDettmers/ConvE/master"
 
 
 def _kgbert(name: str) -> dict:
+    """Build the download spec of a KG-BERT copy of a benchmark.
+
+    Args:
+        name: Folder name in the KG-BERT repository, e.g. ``"FB15k-237"``.
+
+    Returns:
+        A dict with ``files`` (file name -> URL) and ``splits`` (triple files).
+    """
     files = ["train.tsv", "dev.tsv", "test.tsv", "entity2text.txt", "relation2text.txt"]
     return {"files": {f: f"{KGBERT}/{name}/{f}" for f in files},
             "splits": ["train.tsv", "dev.tsv", "test.tsv"]}
@@ -40,6 +48,19 @@ DATASETS: dict[str, dict] = {
 
 @dataclass
 class FuzzyKG:
+    """A fuzzy knowledge graph G = (E, R, T, w) (Section III-B).
+
+    Attributes:
+        name: Dataset name.
+        entities: Entity identifiers; position = entity index.
+        relations: Relation identifiers; position = relation index.
+        triples: Int64 array of shape (m, 3) with rows (head, relation, tail).
+        weights: Float32 array of shape (m,), the confidence w(h, r, t) in [0, 1].
+        given_weights: Confidences shipped in the data files, or None.
+        entity_text: Readable entity names (from ``entity2text.txt``), or None.
+        relation_text: Readable relation names (from ``relation2text.txt``), or None.
+        meta: Free-form metadata, e.g. the confidence scheme used.
+    """
     name: str
     entities: list[str]
     relations: list[str]
@@ -52,23 +73,35 @@ class FuzzyKG:
 
     @property
     def num_entities(self) -> int:
+        """Number of entities |E|."""
         return len(self.entities)
 
     @property
     def num_relations(self) -> int:
+        """Number of relation types |R|."""
         return len(self.relations)
 
     @property
     def num_triples(self) -> int:
+        """Number of triples |T|."""
         return len(self.triples)
 
     def degree(self) -> np.ndarray:
-        """Total (in + out) degree of every entity."""
+        """Total (in + out) degree of every entity.
+
+        Returns:
+            Int array of shape (|E|,).
+        """
         n = self.num_entities
         return (np.bincount(self.triples[:, 0], minlength=n)
                 + np.bincount(self.triples[:, 2], minlength=n))
 
     def summary(self) -> str:
+        """One-line description with sizes and weight statistics.
+
+        Returns:
+            A human-readable summary string.
+        """
         return (f"{self.name}: {self.num_entities} entities, {self.num_relations} relations, "
                 f"{self.num_triples} triples, w mean={self.weights.mean():.3f} "
                 f"std={self.weights.std():.3f}")
@@ -77,6 +110,12 @@ class FuzzyKG:
 # --------------------------------------------------------------------------- download
 
 def _fetch(url: str, dest: Path) -> None:
+    """Download a URL to a file, writing through a ``.part`` file first.
+
+    Args:
+        url: Source URL.
+        dest: Destination path; parent folders are created.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
     print(f"  downloading {url}")
@@ -87,8 +126,17 @@ def _fetch(url: str, dest: Path) -> None:
 
 
 def dataset_folder(name: str, root: Path = DATA_ROOT) -> Path:
-    """data/<name>, matching an existing folder case-insensitively
-    (``fb15k-237`` finds ``data/FB15k-237``)."""
+    """Locate ``data/<name>``, matching an existing folder case-insensitively.
+
+    ``fb15k-237`` finds ``data/FB15k-237``.
+
+    Args:
+        name: Dataset name.
+        root: Data root folder.
+
+    Returns:
+        The existing folder, or ``root / name`` if none matches.
+    """
     if root.exists():
         for p in root.iterdir():
             if p.is_dir() and p.name.lower() == name.lower():
@@ -97,7 +145,15 @@ def dataset_folder(name: str, root: Path = DATA_ROOT) -> Path:
 
 
 def triple_files(folder: Path) -> list[Path]:
-    """Triple files in a dataset folder: *.txt / *.tsv except the *2text files."""
+    """List the triple files of a dataset folder.
+
+    Args:
+        folder: Dataset folder.
+
+    Returns:
+        Sorted ``*.txt`` / ``*.tsv`` files, excluding the ``*2text`` name files;
+        an empty list if the folder does not exist.
+    """
     if not folder.exists():
         return []
     return sorted(p for p in folder.iterdir()
@@ -105,11 +161,18 @@ def triple_files(folder: Path) -> list[Path]:
 
 
 def download_dataset(name: str, root: Path = DATA_ROOT) -> Path:
-    """Use triple files already in data/<name>/; download only what is missing.
+    """Use triple files already in ``data/<name>/``; download only what is missing.
 
-    If the folder already holds triples (e.g. just train.txt), no split is
+    If the folder already holds triples (e.g. just ``train.txt``), no split is
     downloaded; only the entity / relation name files, which the semantic
     channel needs, are fetched when absent.
+
+    Args:
+        name: Dataset name (a key of ``DATASETS`` or any folder in ``root``).
+        root: Data root folder.
+
+    Returns:
+        The dataset folder.
     """
     folder = dataset_folder(name, root)
     spec = DATASETS.get(name.lower())
@@ -144,6 +207,14 @@ def download_dataset(name: str, root: Path = DATA_ROOT) -> Path:
 # --------------------------------------------------------------------------- loading
 
 def _read_rows(path: Path) -> list[list[str]]:
+    """Read tab-separated rows with at least three columns.
+
+    Args:
+        path: A triple file.
+
+    Returns:
+        The split rows, ``[h, r, t]`` or ``[h, r, t, w]``.
+    """
     rows = []
     with open(path, encoding="utf-8") as fh:
         for line in fh:
@@ -154,6 +225,14 @@ def _read_rows(path: Path) -> list[list[str]]:
 
 
 def _read_mapping(path: Path) -> dict[str, str]:
+    """Read a two-column ``key<TAB>value`` file.
+
+    Args:
+        path: File path; a missing file gives an empty mapping.
+
+    Returns:
+        Dict from the first column to the second.
+    """
     if not path.exists():
         return {}
     out = {}
@@ -167,12 +246,25 @@ def _read_mapping(path: Path) -> dict[str, str]:
 
 def load_kg(name: str, root: Path = DATA_ROOT, confidence: str = "auto",
             seed: int = 0) -> FuzzyKG:
-    """Load the union of all splits as one fuzzy KG and assign confidences.
+    """Load all triple files of a dataset as one fuzzy KG and assign confidences.
 
     Link-prediction splits are irrelevant here: bisimulation is defined on the
-    whole graph, so train/valid/test triples are merged.  Files may have three
-    columns (h, r, t) or four (h, r, t, w); with four, ``confidence='given'``
-    uses the shipped scores.
+    whole graph, so all triple files are merged and duplicates removed.  Files
+    may have three columns (h, r, t) or four (h, r, t, w); with four,
+    ``confidence='given'`` uses the shipped scores.  ``entities.dict``, when
+    present, fixes the entity vocabulary.
+
+    Args:
+        name: Dataset name.
+        root: Data root folder.
+        confidence: Confidence scheme, see ``CONFIDENCE_SCHEMES``.
+        seed: Seed for random confidence schemes.
+
+    Returns:
+        The loaded ``FuzzyKG``.
+
+    Raises:
+        FileNotFoundError: If the dataset folder contains no triple files.
     """
     folder = download_dataset(name, root)
     files = triple_files(folder)
@@ -237,6 +329,23 @@ CONFIDENCE_SCHEMES = """
 
 
 def assign_confidence(kg: FuzzyKG, scheme: str, seed: int = 0) -> np.ndarray:
+    """Assign a confidence degree w(h, r, t) to every triple.
+
+    Degrees are rounded to three decimals: Gödel semantics only uses their order
+    and equality, and rounding keeps the fixpoint's value set small.
+
+    Args:
+        kg: The knowledge graph.
+        scheme: One of the schemes in ``CONFIDENCE_SCHEMES``.
+        seed: Seed for random schemes.
+
+    Returns:
+        Float32 array of shape (|T|,) with values in [0, 1].
+
+    Raises:
+        ValueError: If the scheme is unknown, or ``given`` is requested for data
+            without shipped confidences.
+    """
     rng = np.random.default_rng(seed)
     m = kg.num_triples
     if scheme == "auto":
@@ -267,7 +376,19 @@ def assign_confidence(kg: FuzzyKG, scheme: str, seed: int = 0) -> np.ndarray:
 
 
 def _path_support(kg: FuzzyKG, p0: float = 0.3, p: float = 0.15) -> np.ndarray:
-    """w = 1 - (1 - p0)(1 - p)^k where k = #common neighbours of h and t."""
+    """Data-derived confidence from corroborating 2-hop paths.
+
+    w = 1 - (1 - p0)(1 - p)^k, where k is the number of common neighbours of h
+    and t (noisy-OR over k pieces of evidence).
+
+    Args:
+        kg: The knowledge graph.
+        p0: Confidence of a triple with no corroborating path.
+        p: Contribution of each corroborating path.
+
+    Returns:
+        Float array of shape (|T|,).
+    """
     n = kg.num_entities
     h, t = kg.triples[:, 0], kg.triples[:, 2]
     adj = sp.coo_matrix((np.ones(len(h)), (h, t)), shape=(n, n)).tocsr()
@@ -280,12 +401,22 @@ def _path_support(kg: FuzzyKG, p0: float = 0.3, p: float = 0.15) -> np.ndarray:
 
 
 def perturb_weights(w: np.ndarray, delta: float, seed: int = 0) -> np.ndarray:
-    """Shift every degree by at most ``delta`` (used for the Theorem 2 check)."""
+    """Shift every degree by at most ``delta`` (used for the Theorem 2 check).
+
+    Args:
+        w: Original degrees.
+        delta: Maximum absolute perturbation.
+        seed: Random seed.
+
+    Returns:
+        Perturbed degrees clipped to [0, 1], float32.
+    """
     rng = np.random.default_rng(seed)
     return (w + rng.uniform(-delta, delta, size=w.shape)).clip(0.0, 1.0).astype(np.float32)
 
 
 def main() -> None:
+    """Command-line entry point: load datasets and print their summaries."""
     ap = argparse.ArgumentParser(description="Download / inspect fuzzy KG datasets.")
     ap.add_argument("datasets", nargs="+", choices=list(DATASETS))
     ap.add_argument("--confidence", default="auto", help=CONFIDENCE_SCHEMES)

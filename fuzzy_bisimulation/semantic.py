@@ -38,15 +38,30 @@ DESCRIPTION_VERSION = "v1"
 
 
 def _pretty(name: str) -> str:
-    """Readable form of a relation id such as /people/person/nationality."""
+    """Readable form of a relation id such as ``/people/person/nationality``.
+
+    Args:
+        name: Relation identifier.
+
+    Returns:
+        The last path segment with separators replaced by spaces.
+    """
     name = name.strip("/").split("/")[-1] if name.startswith("/") else name
     return re.sub(r"[_./]+", " ", name).strip()
 
 
 def build_descriptions(kg: FuzzyKG, max_facts: int = 8) -> list[str]:
-    """'<name>. <relation> <tail>; ...; <head> <relation> it; ...' per entity.
+    """Textual description of every entity for the semantic encoder.
 
+    Format: ``'<name>. <relation> <tail>; ...; <head> <relation> it; ...'``.
     Facts are ordered by confidence so the most certain ones are kept.
+
+    Args:
+        kg: The knowledge graph.
+        max_facts: Maximum number of facts per entity (half outgoing, half incoming).
+
+    Returns:
+        One description per entity, in entity-index order.
     """
     names = kg.entity_text or kg.entities
     rels = kg.relation_text or [_pretty(r) for r in kg.relations]
@@ -66,6 +81,17 @@ def build_descriptions(kg: FuzzyKG, max_facts: int = 8) -> list[str]:
 # --------------------------------------------------------------------------- encoders
 
 def _tfidf(texts: list[str], dim: int = 768, buckets: int = 1 << 15, seed: int = 0) -> np.ndarray:
+    """Hashed word/bigram TF-IDF followed by a Gaussian random projection.
+
+    Args:
+        texts: Input texts.
+        dim: Output dimension.
+        buckets: Number of hash buckets.
+        seed: Seed of the projection matrix.
+
+    Returns:
+        L2-normalised float32 array (len(texts), dim).
+    """
     rows, cols = [], []
     for i, text in enumerate(texts):
         toks = re.findall(r"[a-z0-9]+", text.lower())
@@ -84,12 +110,32 @@ def _tfidf(texts: list[str], dim: int = 768, buckets: int = 1 << 15, seed: int =
 
 
 def _sentence_transformers(texts: list[str], model: str, device: str | None) -> np.ndarray:
+    """Encode texts with a sentence-transformers model.
+
+    Args:
+        texts: Input texts.
+        model: Model name, e.g. ``all-mpnet-base-v2``.
+        device: Torch device, or None for the library default.
+
+    Returns:
+        L2-normalised embeddings (len(texts), D).
+    """
     from sentence_transformers import SentenceTransformer
     enc = SentenceTransformer(model, device=device)
     return enc.encode(texts, batch_size=128, show_progress_bar=True, normalize_embeddings=True)
 
 
 def _huggingface(texts: list[str], model: str, device: str | None) -> np.ndarray:
+    """Encode texts with a HuggingFace model using attention-masked mean pooling.
+
+    Args:
+        texts: Input texts.
+        model: Model name on the HuggingFace hub.
+        device: Torch device, or None to pick CUDA when available.
+
+    Returns:
+        L2-normalised embeddings (len(texts), D).
+    """
     import torch
     from transformers import AutoModel, AutoTokenizer
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,6 +154,19 @@ def _huggingface(texts: list[str], model: str, device: str | None) -> np.ndarray
 
 
 def _openai(texts: list[str], model: str, dim: int | None) -> np.ndarray:
+    """Encode texts with the OpenAI embeddings API.
+
+    Args:
+        texts: Input texts (truncated to 8,000 characters each).
+        model: Embedding model, e.g. ``text-embedding-3-large``.
+        dim: Requested output dimension, or None for the model default.
+
+    Returns:
+        Float32 embeddings (len(texts), D).
+
+    Raises:
+        RuntimeError: If ``OPENAI_API_KEY`` is not set.
+    """
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise RuntimeError("set OPENAI_API_KEY to use an openai: encoder")
@@ -127,6 +186,20 @@ def _openai(texts: list[str], model: str, dim: int | None) -> np.ndarray:
 
 
 def encode(texts: list[str], spec: str, device: str | None = None) -> np.ndarray:
+    """Encode texts with the encoder named by ``spec``.
+
+    Args:
+        texts: Input texts.
+        spec: ``tfidf[:dim]``, ``st:<model>``, ``hf:<model>`` or
+            ``openai:<model>[:dim]``.
+        device: Torch device for local models.
+
+    Returns:
+        Embeddings (len(texts), D).
+
+    Raises:
+        ValueError: If the encoder kind is unknown.
+    """
     kind, _, rest = spec.partition(":")
     if kind == "tfidf":
         return _tfidf(texts, dim=int(rest) if rest else 768)
@@ -141,13 +214,34 @@ def encode(texts: list[str], spec: str, device: str | None = None) -> np.ndarray
 
 
 def cache_path(dataset: str, spec: str, root: Path = DATA_ROOT) -> Path:
+    """Cache file of the embeddings for a dataset and encoder.
+
+    Args:
+        dataset: Dataset name.
+        spec: Encoder spec.
+        root: Data root folder.
+
+    Returns:
+        ``data/<dataset>/semantic/<spec>_<version>.npy``.
+    """
     safe = re.sub(r"[^A-Za-z0-9.-]+", "_", spec)
     return dataset_folder(dataset, root) / "semantic" / f"{safe}_{DESCRIPTION_VERSION}.npy"
 
 
 def load_or_encode(kg: FuzzyKG, spec: str, root: Path = DATA_ROOT,
                    device: str | None = None) -> tuple[np.ndarray | None, float]:
-    """Return (embeddings (n, D) float32, generation seconds)."""
+    """Load cached semantic embeddings, or compute and cache them.
+
+    Args:
+        kg: The knowledge graph.
+        spec: Encoder spec, or ``"none"``.
+        root: Data root folder.
+        device: Torch device for local models.
+
+    Returns:
+        ``(embeddings, seconds)``: float32 array (n, D) and the generation time
+        (read from the cache metadata when cached); ``(None, 0.0)`` for ``none``.
+    """
     if spec == "none":
         return None, 0.0
     path = cache_path(kg.name, spec, root)
@@ -167,6 +261,7 @@ def load_or_encode(kg: FuzzyKG, spec: str, root: Path = DATA_ROOT,
 
 
 def main() -> None:
+    """Command-line entry point: print sample descriptions and build the cache."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--encoder", default="tfidf")
