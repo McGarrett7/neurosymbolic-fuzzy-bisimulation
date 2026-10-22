@@ -1,0 +1,107 @@
+{
+  "full": {
+    "seconds": 7.701312719000043,
+    "iterations": 8,
+    "nodes": 14541
+  },
+  "local": [
+    {
+      "depth": 1,
+      "ball_nodes": 2882,
+      "exact_fixpoint": false,
+      "seconds": 0.32535917400002745,
+      "max_abs": 0.7580000162124634,
+      "mean_abs": 0.0005242140614427626
+    },
+    {
+      "depth": 2,
+      "ball_nodes": 11352,
+      "exact_fixpoint": false,
+      "seconds": 1.58088281900001,
+      "max_abs": 0.32100000977516174,
+      "mean_abs": 2.9007806006120518e-05
+    },
+    {
+      "depth": 3,
+      "ball_nodes": 12624,
+      "exact_fixpoint": false,
+      "seconds": 2.4863457559999915,
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "depth": 4,
+      "ball_nodes": 12798,
+      "exact_fixpoint": false,
+      "seconds": 3.3411348240000507,
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "depth": 5,
+      "ball_nodes": 12829,
+      "exact_fixpoint": false,
+      "seconds": 4.076448871999958,
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "depth": 6,
+      "ball_nodes": 12844,
+      "exact_fixpoint": false,
+      "seconds": 4.705834300999982,
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    }
+  ],
+  "induced_gap": [
+    {
+      "sampling": "random",
+      "ratio": 0.05,
+      "n_s": 727,
+      "eps_s": 0.2277895212173462,
+      "mean_sub": 0.22959640622138977,
+      "mean_full": 0.0018068815115839243
+    },
+    {
+      "sampling": "random",
+      "ratio": 0.1,
+      "n_s": 1454,
+      "eps_s": 0.07491268962621689,
+      "mean_sub": 0.07693171501159668,
+      "mean_full": 0.002022447530180216
+    },
+    {
+      "sampling": "random",
+      "ratio": 0.2,
+      "n_s": 2908,
+      "eps_s": 0.022110026329755783,
+      "mean_sub": 0.02425285615026951,
+      "mean_full": 0.0021453010849654675
+    },
+    {
+      "sampling": "degree",
+      "ratio": 0.05,
+      "n_s": 727,
+      "eps_s": 0.016123898327350616,
+      "mean_sub": 0.016541041433811188,
+      "mean_full": 0.00041714299004524946
+    },
+    {
+      "sampling": "degree",
+      "ratio": 0.1,
+      "n_s": 1454,
+      "eps_s": 0.0046168784610927105,
+      "mean_sub": 0.0054380944930016994,
+      "mean_full": 0.000822278147097677
+    },
+    {
+      "sampling": "degree",
+      "ratio": 0.2,
+      "n_s": 2908,
+      "eps_s": 0.0012650262797251344,
+      "mean_sub": 0.0020744705107063055,
+      "mean_full": 0.0008133581141009927
+    }
+  ]
+}

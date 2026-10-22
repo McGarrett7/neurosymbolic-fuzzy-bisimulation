@@ -1,0 +1,36 @@
+{
+  "rows": [
+    {
+      "dim": 16,
+      "seconds_per_query": 1.98025340000072e-07
+    },
+    {
+      "dim": 32,
+      "seconds_per_query": 3.8897929000029307e-07
+    },
+    {
+      "dim": 64,
+      "seconds_per_query": 7.210824399999183e-07
+    },
+    {
+      "dim": 128,
+      "seconds_per_query": 1.4389141899999912e-06
+    },
+    {
+      "dim": 256,
+      "seconds_per_query": 2.7777756400001864e-06
+    },
+    {
+      "dim": 512,
+      "seconds_per_query": 5.203525420000119e-06
+    },
+    {
+      "dim": 1024,
+      "seconds_per_query": 1.0333089380000047e-05
+    },
+    {
+      "dim": 2048,
+      "seconds_per_query": 2.0459018359999846e-05
+    }
+  ]
+}
