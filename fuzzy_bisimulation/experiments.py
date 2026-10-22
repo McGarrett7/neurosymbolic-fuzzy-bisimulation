@@ -44,7 +44,7 @@ from .exact_bisimulation import (TransitionSystem, build_state_labels, compute_b
                                  label_similarity)
 from .generate_labels import add_label_args, generate, value_stats
 from .local_sampling import induced_reference, local_reference, split_entities
-from .train import PAPER_SEMANTIC, add_train_args, eval_pairs, load_model, train
+from .train import DEFAULT_SEMANTIC, add_train_args, eval_pairs, load_model, train
 
 METRICS = ("mae", "rmse", "f1", "spearman")
 
@@ -339,7 +339,7 @@ def main() -> None:
     ap.add_argument("suite", choices=list(SUITES))
     ap.add_argument("--dataset", default="fb15k-237", choices=["fb15k-237", "wn18rr", "yago3-10"])
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
-    ap.add_argument("--semantic", default=PAPER_SEMANTIC)
+    ap.add_argument("--semantic", default=DEFAULT_SEMANTIC)
     ap.add_argument("--encoders", nargs="+",
                     default=["tfidf", "st:all-MiniLM-L6-v2", "st:all-mpnet-base-v2",
                              "openai:text-embedding-3-large:768"])

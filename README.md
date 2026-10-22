@@ -45,7 +45,8 @@ encoders, semantics, stability, assumptions`. A GPU (`--device cuda`) is
 recommended for FB15k-237 and YAGO3-10.
 
 The paper's semantic channel uses `openai:text-embedding-3-large:768`, which
-requires an `OPENAI_API_KEY` environment variable; `tfidf` runs offline.
+requires an `OPENAI_API_KEY` environment variable. The code defaults to the
+open-source `st:all-mpnet-base-v2` (also 768-d, no API key); `tfidf` runs offline.
 
 ## Data sources
 

@@ -50,6 +50,7 @@ from .model import ENCODERS, BisimNet, GraphTensors, build_graph, structural_fea
 from .semantic import load_or_encode
 
 PAPER_SEMANTIC = "openai:text-embedding-3-large:768"           # Table IV
+DEFAULT_SEMANTIC = "st:all-mpnet-base-v2"                      # open 768-d stand-in, no API key
 
 
 # --------------------------------------------------------------------------- data for training
@@ -107,7 +108,7 @@ class PairSampler:
 def add_train_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--labels", type=Path, required=True)
     ap.add_argument("--encoder", default="rgcn", choices=ENCODERS)
-    ap.add_argument("--semantic", default=PAPER_SEMANTIC,
+    ap.add_argument("--semantic", default=DEFAULT_SEMANTIC,
                     help="semantic encoder spec (see semantic.py) or 'none'; paper: " + PAPER_SEMANTIC)
     ap.add_argument("--alpha", default="0.7", help="fusion weight in [0,1] or 'learn'")
     ap.add_argument("--normalize-fusion", action="store_true", help="L2-normalise g and ϕ_proj before fusion")

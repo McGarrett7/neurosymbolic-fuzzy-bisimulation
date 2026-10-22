@@ -32,7 +32,7 @@ from .exact_bisimulation import build_state_labels
 from .local_sampling import local_reference, sample_pairs
 from .semantic import load_or_encode
 from .model import structural_features
-from .train import PAPER_SEMANTIC, eval_pairs, kg_for_labels, load_model
+from .train import DEFAULT_SEMANTIC, eval_pairs, kg_for_labels, load_model
 
 
 # --------------------------------------------------------------------------- metrics
@@ -269,7 +269,7 @@ def main() -> None:
     ap.add_argument("--checkpoint", type=Path, nargs="*", default=[])
     ap.add_argument("--labels", type=Path, help="for --baselines")
     ap.add_argument("--baselines", action="store_true")
-    ap.add_argument("--semantic", default=PAPER_SEMANTIC)
+    ap.add_argument("--semantic", default=DEFAULT_SEMANTIC)
     ap.add_argument("--latency", action="store_true")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--out", type=Path, default=None)

@@ -23,7 +23,7 @@ pip install -r requirements.txt
 python -m fuzzy_bisimulation.exact_bisimulation --selftest          # vectorised F == literal Eq. (1)
 
 python -m fuzzy_bisimulation.generate_labels --dataset fb15k-237    # stage 1
-python -m fuzzy_bisimulation.train --labels data/FB15k-237/labels/<tag>.pt --semantic openai:text-embedding-3-large:768
+python -m fuzzy_bisimulation.train --labels data/FB15k-237/labels/<tag>.pt --semantic st:all-mpnet-base-v2
 python -m fuzzy_bisimulation.evaluate --checkpoint checkpoints/<run>.pt
 python -m fuzzy_bisimulation.experiments main --dataset fb15k-237   # 5 seeds, all baselines
 ```
@@ -106,7 +106,7 @@ downloaded.
 python -m fuzzy_bisimulation.experiments {main,ablation,sampling,latency,reference,train-ref,confidence,
                                           alpha,encoders,semantics,stability,assumptions} \
        --dataset <name> [--semantics lukasiewicz --discount 0.7] [--train-reference local] \
-       [--semantic openai:text-embedding-3-large:768] [--seeds 0 1 2 3 4]
+       [--semantic st:all-mpnet-base-v2] [--seeds 0 1 2 3 4]
 ```
 
 Outputs go to `results/<suite>_<dataset>.{json,md}`.
