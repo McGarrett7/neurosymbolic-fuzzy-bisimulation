@@ -1,0 +1,636 @@
+{
+  "rows": {
+    "tfidf": {
+      "uniform": {
+        "mae": [
+          0.5003868326783181
+        ],
+        "rmse": [
+          0.5085930754308081
+        ],
+        "f1": [
+          0.1297297297297297
+        ],
+        "spearman": [
+          0.08808282949664213
+        ]
+      },
+      "stratified": {
+        "mae": [
+          0.466245441395431
+        ],
+        "rmse": [
+          0.4893461876945096
+        ],
+        "f1": [
+          0.8066666666666666
+        ],
+        "spearman": [
+          0.43549968410457457
+        ]
+      }
+    },
+    "st:all-MiniLM-L6-v2": {
+      "uniform": {
+        "mae": [
+          0.5007921526014805
+        ],
+        "rmse": [
+          0.5090452667985446
+        ],
+        "f1": [
+          0.1297297297297297
+        ],
+        "spearman": [
+          0.08795499192887196
+        ]
+      },
+      "stratified": {
+        "mae": [
+          0.46649366148832927
+        ],
+        "rmse": [
+          0.48964425697925307
+        ],
+        "f1": [
+          0.8039867109634552
+        ],
+        "spearman": [
+          0.4352993059761085
+        ]
+      }
+    },
+    "st:all-mpnet-base-v2": {
+      "uniform": {
+        "mae": [
+          0.5008415771186352
+        ],
+        "rmse": [
+          0.5091537197048279
+        ],
+        "f1": [
+          0.1297297297297297
+        ],
+        "spearman": [
+          0.08801763101714749
+        ]
+      },
+      "stratified": {
+        "mae": [
+          0.4661708284477793
+        ],
+        "rmse": [
+          0.4894767997425305
+        ],
+        "f1": [
+          0.8259385665529011
+        ],
+        "spearman": [
+          0.43544567935540307
+        ]
+      }
+    }
+  },
+  "tests": {},
+  "extras": {
+    "tfidf": {
+      "cost": {
+        "offline_seconds": {
+          "sampling": 0.08101526600000852,
+          "train_reference": 1.5317690440000433,
+          "semantic_embedding": 4.88950502299997,
+          "training": 230.91337892800004,
+          "embedding_construction": 0.011739443000010397
+        },
+        "offline_total": 237.42740770400007,
+        "query_seconds": {
+          "batched": 1.5159900004846348e-08,
+          "single": 0.0001544921825000074
+        },
+        "embedding_dim": 128,
+        "exact_reference": {
+          "mode": "local",
+          "seconds": 3.2168579350000073,
+          "entities": 300,
+          "pairs": 44850,
+          "per_pair": 7.17248146042365e-05,
+          "ball_nodes": 12798
+        },
+        "break_even_queries": 3310954.5525393425,
+        "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+      },
+      "alpha": 0.7
+    },
+    "st:all-MiniLM-L6-v2": {
+      "cost": {
+        "offline_seconds": {
+          "sampling": 0.08101526600000852,
+          "train_reference": 1.5317690440000433,
+          "semantic_embedding": 28.841455822000057,
+          "training": 232.82502365800008,
+          "embedding_construction": 0.012073623999867777
+        },
+        "offline_total": 263.29133741400005,
+        "query_seconds": {
+          "batched": 1.0191000001213979e-08,
+          "single": 0.0001577991025000074
+        },
+        "embedding_dim": 128,
+        "exact_reference": {
+          "mode": "local",
+          "seconds": 3.2168579350000073,
+          "entities": 300,
+          "pairs": 44850,
+          "per_pair": 7.17248146042365e-05,
+          "ball_nodes": 12798
+        },
+        "break_even_queries": 3671375.853089616,
+        "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+      },
+      "alpha": 0.7
+    },
+    "st:all-mpnet-base-v2": {
+      "cost": {
+        "offline_seconds": {
+          "sampling": 0.08101526600000852,
+          "train_reference": 1.5317690440000433,
+          "semantic_embedding": 132.395400289,
+          "training": 234.05978230799997,
+          "embedding_construction": 0.011675381999793899
+        },
+        "offline_total": 368.0796422889998,
+        "query_seconds": {
+          "batched": 1.0827799997059628e-08,
+          "single": 0.00015625607250001393
+        },
+        "embedding_dim": 128,
+        "exact_reference": {
+          "mode": "local",
+          "seconds": 3.2168579350000073,
+          "entities": 300,
+          "pairs": 44850,
+          "per_pair": 7.17248146042365e-05,
+          "ball_nodes": 12798
+        },
+        "break_even_queries": 5132606.046485208,
+        "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+      },
+      "alpha": 0.7
+    }
+  },
+  "results": {
+    "tfidf": [
+      {
+        "checkpoint": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/checkpoints/FB15k-237__auto_inout_degree0.1_g0.7_tr-induced_ev-local4_s0__rgcn_tfidf_a0.7_bisim_uniform_nofr-spe500_s0.pt",
+        "label_config": {
+          "dataset": "fb15k-237",
+          "data_root": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/data",
+          "confidence": "auto",
+          "label_mode": "inout",
+          "semantics": "godel",
+          "discount": 1.0,
+          "sample_ratio": 0.1,
+          "sampling": "degree",
+          "gamma": 0.7,
+          "train_reference": "induced",
+          "eval_reference": "local",
+          "depth": 4,
+          "max_ball_nodes": 20000,
+          "val_entities": 500,
+          "test_entities": 300,
+          "val_pairs": 2000,
+          "test_pairs": 5000,
+          "eps": 0.0001,
+          "max_iter": null,
+          "seed": 0,
+          "device": "cuda",
+          "tag": null,
+          "force": false
+        },
+        "alpha": 0.7,
+        "test": {
+          "uniform": {
+            "n": 5000,
+            "mae": 0.5003868326783181,
+            "rmse": 0.5085930754308081,
+            "f1": 0.1297297297297297,
+            "precision": 0.06936416184971098,
+            "recall": 1.0,
+            "pos_rate": 0.0024,
+            "confusion": {
+              "tp": 12,
+              "fp": 161,
+              "fn": 0,
+              "tn": 4827
+            },
+            "pearson": 0.2746774934227804,
+            "spearman": 0.08808282949664213
+          },
+          "stratified": {
+            "n": 1788,
+            "mae": 0.466245441395431,
+            "rmse": 0.4893461876945096,
+            "f1": 0.8066666666666666,
+            "precision": 0.6759776536312849,
+            "recall": 1.0,
+            "pos_rate": 0.06767337807606263,
+            "confusion": {
+              "tp": 121,
+              "fp": 58,
+              "fn": 0,
+              "tn": 1609
+            },
+            "pearson": 0.8360745639466871,
+            "spearman": 0.43549968410457457
+          }
+        },
+        "val": {
+          "uniform": {
+            "n": 2000,
+            "mae": 0.49961877495050433,
+            "rmse": 0.5085566345074557,
+            "f1": 0.1904761904761905,
+            "precision": 0.10526315789473684,
+            "recall": 1.0,
+            "pos_rate": 0.004,
+            "confusion": {
+              "tp": 8,
+              "fp": 68,
+              "fn": 0,
+              "tn": 1924
+            },
+            "pearson": 0.3399319732453452,
+            "spearman": 0.11522886127324414
+          },
+          "stratified": {
+            "n": 1151,
+            "mae": 0.29716627663575906,
+            "rmse": 0.38828274273073765,
+            "f1": 0.9651639344262296,
+            "precision": 0.9326732673267327,
+            "recall": 1.0,
+            "pos_rate": 0.4092093831450912,
+            "confusion": {
+              "tp": 471,
+              "fp": 34,
+              "fn": 0,
+              "tn": 646
+            },
+            "pearson": 0.9613249329075284,
+            "spearman": 0.8381873228325174
+          }
+        },
+        "train_reference_stats": {
+          "n": 1056331,
+          "mean": 0.005438094390429178,
+          "std": 0.07249818694899504,
+          "frac_zero": 0.9941968947233396,
+          "frac_pos": 0.0053837291530779655,
+          "quantiles": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "test_reference_info": {
+          "mode": "local",
+          "exact_fixpoint": false,
+          "depth": 4,
+          "ball_nodes": 12798,
+          "ball_triples": 252680,
+          "iterations": 4,
+          "seconds": 3.2168579350000073
+        },
+        "cost": {
+          "offline_seconds": {
+            "sampling": 0.08101526600000852,
+            "train_reference": 1.5317690440000433,
+            "semantic_embedding": 4.88950502299997,
+            "training": 230.91337892800004,
+            "embedding_construction": 0.011739443000010397
+          },
+          "offline_total": 237.42740770400007,
+          "query_seconds": {
+            "batched": 1.5159900004846348e-08,
+            "single": 0.0001544921825000074
+          },
+          "embedding_dim": 128,
+          "exact_reference": {
+            "mode": "local",
+            "seconds": 3.2168579350000073,
+            "entities": 300,
+            "pairs": 44850,
+            "per_pair": 7.17248146042365e-05,
+            "ball_nodes": 12798
+          },
+          "break_even_queries": 3310954.5525393425,
+          "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+        }
+      }
+    ],
+    "st:all-MiniLM-L6-v2": [
+      {
+        "checkpoint": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/checkpoints/FB15k-237__auto_inout_degree0.1_g0.7_tr-induced_ev-local4_s0__rgcn_st-all-MiniLM-L6-v2_a0.7_bisim_uniform_nofr-spe500_s0.pt",
+        "label_config": {
+          "dataset": "fb15k-237",
+          "data_root": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/data",
+          "confidence": "auto",
+          "label_mode": "inout",
+          "semantics": "godel",
+          "discount": 1.0,
+          "sample_ratio": 0.1,
+          "sampling": "degree",
+          "gamma": 0.7,
+          "train_reference": "induced",
+          "eval_reference": "local",
+          "depth": 4,
+          "max_ball_nodes": 20000,
+          "val_entities": 500,
+          "test_entities": 300,
+          "val_pairs": 2000,
+          "test_pairs": 5000,
+          "eps": 0.0001,
+          "max_iter": null,
+          "seed": 0,
+          "device": "cuda",
+          "tag": null,
+          "force": false
+        },
+        "alpha": 0.7,
+        "test": {
+          "uniform": {
+            "n": 5000,
+            "mae": 0.5007921526014805,
+            "rmse": 0.5090452667985446,
+            "f1": 0.1297297297297297,
+            "precision": 0.06936416184971098,
+            "recall": 1.0,
+            "pos_rate": 0.0024,
+            "confusion": {
+              "tp": 12,
+              "fp": 161,
+              "fn": 0,
+              "tn": 4827
+            },
+            "pearson": 0.27370482024532483,
+            "spearman": 0.08795499192887196
+          },
+          "stratified": {
+            "n": 1788,
+            "mae": 0.46649366148832927,
+            "rmse": 0.48964425697925307,
+            "f1": 0.8039867109634552,
+            "precision": 0.6722222222222223,
+            "recall": 1.0,
+            "pos_rate": 0.06767337807606263,
+            "confusion": {
+              "tp": 121,
+              "fp": 59,
+              "fn": 0,
+              "tn": 1608
+            },
+            "pearson": 0.8349082964838899,
+            "spearman": 0.4352993059761085
+          }
+        },
+        "val": {
+          "uniform": {
+            "n": 2000,
+            "mae": 0.4993512111157179,
+            "rmse": 0.5084919313068591,
+            "f1": 0.18390804597701146,
+            "precision": 0.10126582278481013,
+            "recall": 1.0,
+            "pos_rate": 0.004,
+            "confusion": {
+              "tp": 8,
+              "fp": 71,
+              "fn": 0,
+              "tn": 1921
+            },
+            "pearson": 0.33651372566100146,
+            "spearman": 0.11524167090061653
+          },
+          "stratified": {
+            "n": 1151,
+            "mae": 0.29718693583349265,
+            "rmse": 0.38841219218349105,
+            "f1": 0.9622063329928499,
+            "precision": 0.9271653543307087,
+            "recall": 1.0,
+            "pos_rate": 0.4092093831450912,
+            "confusion": {
+              "tp": 471,
+              "fp": 37,
+              "fn": 0,
+              "tn": 643
+            },
+            "pearson": 0.9602033332140927,
+            "spearman": 0.8411669291241878
+          }
+        },
+        "train_reference_stats": {
+          "n": 1056331,
+          "mean": 0.005438094390429178,
+          "std": 0.07249818694899504,
+          "frac_zero": 0.9941968947233396,
+          "frac_pos": 0.0053837291530779655,
+          "quantiles": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "test_reference_info": {
+          "mode": "local",
+          "exact_fixpoint": false,
+          "depth": 4,
+          "ball_nodes": 12798,
+          "ball_triples": 252680,
+          "iterations": 4,
+          "seconds": 3.2168579350000073
+        },
+        "cost": {
+          "offline_seconds": {
+            "sampling": 0.08101526600000852,
+            "train_reference": 1.5317690440000433,
+            "semantic_embedding": 28.841455822000057,
+            "training": 232.82502365800008,
+            "embedding_construction": 0.012073623999867777
+          },
+          "offline_total": 263.29133741400005,
+          "query_seconds": {
+            "batched": 1.0191000001213979e-08,
+            "single": 0.0001577991025000074
+          },
+          "embedding_dim": 128,
+          "exact_reference": {
+            "mode": "local",
+            "seconds": 3.2168579350000073,
+            "entities": 300,
+            "pairs": 44850,
+            "per_pair": 7.17248146042365e-05,
+            "ball_nodes": 12798
+          },
+          "break_even_queries": 3671375.853089616,
+          "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+        }
+      }
+    ],
+    "st:all-mpnet-base-v2": [
+      {
+        "checkpoint": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/checkpoints/FB15k-237__auto_inout_degree0.1_g0.7_tr-induced_ev-local4_s0__rgcn_st-all-mpnet-base-v2_a0.7_bisim_uniform_nofr-spe500_s0.pt",
+        "label_config": {
+          "dataset": "fb15k-237",
+          "data_root": "/kaggle/working/neurosymbolic-fuzzy-bisimulation/data",
+          "confidence": "auto",
+          "label_mode": "inout",
+          "semantics": "godel",
+          "discount": 1.0,
+          "sample_ratio": 0.1,
+          "sampling": "degree",
+          "gamma": 0.7,
+          "train_reference": "induced",
+          "eval_reference": "local",
+          "depth": 4,
+          "max_ball_nodes": 20000,
+          "val_entities": 500,
+          "test_entities": 300,
+          "val_pairs": 2000,
+          "test_pairs": 5000,
+          "eps": 0.0001,
+          "max_iter": null,
+          "seed": 0,
+          "device": "cuda",
+          "tag": null,
+          "force": false
+        },
+        "alpha": 0.7,
+        "test": {
+          "uniform": {
+            "n": 5000,
+            "mae": 0.5008415771186352,
+            "rmse": 0.5091537197048279,
+            "f1": 0.1297297297297297,
+            "precision": 0.06936416184971098,
+            "recall": 1.0,
+            "pos_rate": 0.0024,
+            "confusion": {
+              "tp": 12,
+              "fp": 161,
+              "fn": 0,
+              "tn": 4827
+            },
+            "pearson": 0.2725791041301176,
+            "spearman": 0.08801763101714749
+          },
+          "stratified": {
+            "n": 1788,
+            "mae": 0.4661708284477793,
+            "rmse": 0.4894767997425305,
+            "f1": 0.8259385665529011,
+            "precision": 0.7034883720930233,
+            "recall": 1.0,
+            "pos_rate": 0.06767337807606263,
+            "confusion": {
+              "tp": 121,
+              "fp": 51,
+              "fn": 0,
+              "tn": 1616
+            },
+            "pearson": 0.8324045747597447,
+            "spearman": 0.43544567935540307
+          }
+        },
+        "val": {
+          "uniform": {
+            "n": 2000,
+            "mae": 0.49937397049367427,
+            "rmse": 0.5083179889395952,
+            "f1": 0.1904761904761905,
+            "precision": 0.10526315789473684,
+            "recall": 1.0,
+            "pos_rate": 0.004,
+            "confusion": {
+              "tp": 8,
+              "fp": 68,
+              "fn": 0,
+              "tn": 1924
+            },
+            "pearson": 0.3399108034937943,
+            "spearman": 0.11522906825501242
+          },
+          "stratified": {
+            "n": 1151,
+            "mae": 0.2966880236471559,
+            "rmse": 0.38759082324411076,
+            "f1": 0.9651639344262296,
+            "precision": 0.9326732673267327,
+            "recall": 1.0,
+            "pos_rate": 0.4092093831450912,
+            "confusion": {
+              "tp": 471,
+              "fp": 34,
+              "fn": 0,
+              "tn": 646
+            },
+            "pearson": 0.9612481312703739,
+            "spearman": 0.8405689627761183
+          }
+        },
+        "train_reference_stats": {
+          "n": 1056331,
+          "mean": 0.005438094390429178,
+          "std": 0.07249818694899504,
+          "frac_zero": 0.9941968947233396,
+          "frac_pos": 0.0053837291530779655,
+          "quantiles": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "test_reference_info": {
+          "mode": "local",
+          "exact_fixpoint": false,
+          "depth": 4,
+          "ball_nodes": 12798,
+          "ball_triples": 252680,
+          "iterations": 4,
+          "seconds": 3.2168579350000073
+        },
+        "cost": {
+          "offline_seconds": {
+            "sampling": 0.08101526600000852,
+            "train_reference": 1.5317690440000433,
+            "semantic_embedding": 132.395400289,
+            "training": 234.05978230799997,
+            "embedding_construction": 0.011675381999793899
+          },
+          "offline_total": 368.0796422889998,
+          "query_seconds": {
+            "batched": 1.0827799997059628e-08,
+            "single": 0.00015625607250001393
+          },
+          "embedding_dim": 128,
+          "exact_reference": {
+            "mode": "local",
+            "seconds": 3.2168579350000073,
+            "entities": 300,
+            "pairs": 44850,
+            "per_pair": 7.17248146042365e-05,
+            "ball_nodes": 12798
+          },
+          "break_even_queries": 5132606.046485208,
+          "note": "per-query cost is O(d) for fixed precomputed embeddings; it is independent of |E| only under that assumption, and excludes the offline stages listed here"
+        }
+      }
+    ]
+  }
+}
