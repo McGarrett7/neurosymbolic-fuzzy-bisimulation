@@ -90,6 +90,7 @@ def train_args(common: argparse.Namespace, labels: Path, **over) -> argparse.Nam
     a.semantic, a.epochs, a.steps_per_epoch = common.semantic, common.epochs, common.steps_per_epoch
     a.train_pairs, a.patience = common.train_pairs, common.patience
     a.pair_sampling, a.device, a.quiet = common.pair_sampling, common.device, True
+    a.final_relu = common.final_relu
     for k, v in over.items():
         setattr(a, k, v)
     return a
@@ -495,6 +496,8 @@ def main() -> None:
     ap.add_argument("--train-pairs", type=int, default=0, help="|P|; 0: all training-entity pairs")
     ap.add_argument("--patience", type=int, default=10, help="early-stopping patience (epochs)")
     ap.add_argument("--pair-sampling", default="uniform", choices=["uniform", "balanced"])
+    ap.add_argument("--final-relu", action="store_true",
+                    help="paper's ReLU after the last GNN layer for every variant")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     common = ap.parse_args()
     SUITES[common.suite](common)
