@@ -284,7 +284,8 @@ class BisimNet(nn.Module):
     """
     def __init__(self, encoder: str, feat_dim: int, num_relations: int, sem_dim: int | None,
                  d: int = 128, layers: int = 2, num_bases: int = 0, dropout: float = 0.2,
-                 alpha: float | str = 0.7, normalize_fusion: bool = False, final_relu: bool = False):
+                 alpha: float | str = 0.7, normalize_fusion: bool = False, final_relu: bool = False,
+                 calibrate_output: bool = False):
         """Create the model.
 
         Args:
@@ -300,6 +301,8 @@ class BisimNet(nn.Module):
                 α = 1 drops the semantic channel, α = 0 drops the graph encoder.
             normalize_fusion: L2-normalise both channels before fusion.
             final_relu: ReLU after the last GNN layer, see ``GraphEncoder``.
+            calibrate_output: B̂ = sigmoid(a·cos + b) with learned a, b instead of
+                (cos + 1) / 2, so the output level and spread can follow the labels.
         """
         super().__init__()
         self.alpha_mode = alpha
@@ -312,6 +315,10 @@ class BisimNet(nn.Module):
         if alpha == "learn":
             self.alpha_logit = nn.Parameter(torch.tensor(0.0))
         self.normalize_fusion = normalize_fusion
+        self.calibrate_output = calibrate_output
+        if calibrate_output:
+            self.cal_a = nn.Parameter(torch.tensor(2.0))
+            self.cal_b = nn.Parameter(torch.tensor(0.0))
 
     @property
     def alpha(self) -> float | torch.Tensor:
@@ -337,9 +344,9 @@ class BisimNet(nn.Module):
             parts.append(((1 - self.alpha) if self.graph is not None else 1.0, norm(self.proj(g.sem))))
         return sum(c * v for c, v in parts)
 
-    @staticmethod
-    def similarity(zi: torch.Tensor, zj: torch.Tensor) -> torch.Tensor:
-        """Predicted bisimulation degree σ_sim(cos(z_i, z_j)) = (cos + 1) / 2.
+    def similarity(self, zi: torch.Tensor, zj: torch.Tensor) -> torch.Tensor:
+        """Predicted bisimulation degree σ_sim(cos(z_i, z_j)) = (cos + 1) / 2,
+        or sigmoid(a·cos + b) with ``calibrate_output``.
 
         Args:
             zi: Embeddings of the first entities (..., d).
@@ -348,4 +355,7 @@ class BisimNet(nn.Module):
         Returns:
             Degrees in [0, 1].
         """
-        return (F.cosine_similarity(zi, zj, dim=-1) + 1.0) / 2.0
+        cos = F.cosine_similarity(zi, zj, dim=-1)
+        if self.calibrate_output:
+            return torch.sigmoid(self.cal_a * cos + self.cal_b)
+        return (cos + 1.0) / 2.0

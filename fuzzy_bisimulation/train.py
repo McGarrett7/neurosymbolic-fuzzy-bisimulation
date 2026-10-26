@@ -162,6 +162,8 @@ def add_train_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--normalize-fusion", action="store_true", help="L2-normalise g and ϕ_proj before fusion")
     ap.add_argument("--final-relu", action="store_true",
                     help="paper's ReLU after the last GNN layer (bounds B_hat >= 0.5 when alpha = 1)")
+    ap.add_argument("--calibrate-output", action="store_true",
+                    help="B_hat = sigmoid(a*cos + b) with learned a, b instead of (cos + 1) / 2")
     ap.add_argument("--target", default="bisim", choices=["bisim", "jaccard"])
     ap.add_argument("--pair-sampling", default="uniform", choices=["uniform", "balanced"])
     ap.add_argument("--dim", type=int, default=128)
@@ -199,7 +201,8 @@ def model_kwargs(a: argparse.Namespace, g: GraphTensors) -> dict:
     return dict(encoder=a.encoder, feat_dim=g.x.shape[1], num_relations=g.num_relations,
                 sem_dim=None if g.sem is None else g.sem.shape[1], d=a.dim, layers=a.layers,
                 num_bases=a.bases, dropout=a.dropout, alpha=alpha,
-                normalize_fusion=a.normalize_fusion, final_relu=a.final_relu)
+                normalize_fusion=a.normalize_fusion, final_relu=a.final_relu,
+                calibrate_output=getattr(a, "calibrate_output", False))
 
 
 def deviations(a: argparse.Namespace) -> str:
@@ -213,6 +216,7 @@ def deviations(a: argparse.Namespace) -> str:
     """
     flags = [f"b{a.bases}" if a.bases else "", "inv" if a.inverse else "", "ew" if a.edge_weight else "",
              "nf" if a.normalize_fusion else "", "" if a.final_relu else "nofr",
+             "cal" if getattr(a, "calibrate_output", False) else "",
              f"spe{a.steps_per_epoch}" if a.steps_per_epoch else "",
              f"P{a.train_pairs}" if a.train_pairs else ""]
     return "-".join(f for f in flags if f) or "paper"

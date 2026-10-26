@@ -91,6 +91,7 @@ def train_args(common: argparse.Namespace, labels: Path, **over) -> argparse.Nam
     a.train_pairs, a.patience = common.train_pairs, common.patience
     a.pair_sampling, a.device, a.quiet = common.pair_sampling, common.device, True
     a.final_relu = common.final_relu
+    a.calibrate_output = common.calibrate_output
     for k, v in over.items():
         setattr(a, k, v)
     return a
@@ -498,6 +499,8 @@ def main() -> None:
     ap.add_argument("--pair-sampling", default="uniform", choices=["uniform", "balanced"])
     ap.add_argument("--final-relu", action="store_true",
                     help="paper's ReLU after the last GNN layer for every variant")
+    ap.add_argument("--calibrate-output", action="store_true",
+                    help="B_hat = sigmoid(a*cos + b) for every variant")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     common = ap.parse_args()
     SUITES[common.suite](common)
