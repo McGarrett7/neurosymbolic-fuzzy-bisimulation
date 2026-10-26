@@ -240,6 +240,19 @@ def suite_main(common) -> None:
     (RESULTS_ROOT / f"main_{common.dataset}_zeroshot.json").write_text(json.dumps(zs, indent=2, default=float))
 
 
+def suite_llm(common) -> None:
+    """Does the semantic (LLM) channel help? Proposed (α = 0.7) against the same R-GCN without it (α = 1).
+
+    Args:
+        common: Parsed suite options.
+    """
+    variants = {
+        "Proposed (R-GCN + semantic, a=0.7)": ({}, {}),
+        "R-GCN w/o semantic (a=1)": ({}, {"alpha": "1.0"}),
+    }
+    run_grid(common, variants, "llm", reference="Proposed (R-GCN + semantic, a=0.7)")
+
+
 def suite_ablation(common) -> None:
     """Table VIII: component ablations, including the paper's final ReLU.
 
@@ -468,7 +481,7 @@ def suite_assumptions(common) -> None:
     save(common, "assumptions", rows, "\n".join(md) + "\n")
 
 
-SUITES = {"main": suite_main, "ablation": suite_ablation, "sampling": suite_sampling,
+SUITES = {"main": suite_main, "llm": suite_llm, "ablation": suite_ablation, "sampling": suite_sampling,
           "alpha": suite_alpha, "encoders": suite_encoders, "train-ref": suite_train_ref,
           "confidence": suite_confidence, "semantics": suite_semantics, "reference": suite_reference,
           "latency": suite_latency, "stability": suite_stability, "assumptions": suite_assumptions}

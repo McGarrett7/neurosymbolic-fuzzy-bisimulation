@@ -6,8 +6,8 @@ Thư mục `results/` có 4 nhóm kết quả; mỗi thực nghiệm có 1 file 
 
 | Nhóm | File | Ứng với |
 | --- | --- | --- |
-| Kết quả chính | `main_fb15k-237.md/.json`, `main_wn18rr.md/.json` | Table V, VI của paper |
-| Kết quả chính | `main_fb15k-237_zeroshot.json`, `main_wn18rr_zeroshot.json` | Baseline không train trong Table V (LLM Similarity) |
+| Kết quả chính | `main_fb15k-237.md/.json`, `main_wn18rr.md/.json`, `main_yago3-10.md/.json` | Table V, VI của paper |
+| Kết quả chính | `main_<dataset>_zeroshot.json` (3 dataset) | Baseline không train trong Table V (LLM Similarity) |
 | Ablation | `ablation_fb15k-237.md/.json` | Table VIII |
 | Phần IV | `alpha_fb15k-237.md/.json` | Độ nhạy theo trọng số trộn α |
 | Phần IV | `encoders_fb15k-237.md/.json` | So sánh bộ mã hóa tên entity |
@@ -33,11 +33,11 @@ Các bảng kết quả đều dùng chung những khái niệm dưới đây; �
 | Spearman | Độ tương quan thứ hạng giữa B̂ và B\*, từ −1 đến 1 | Cao là tốt; đo việc xếp hạng đúng, không cần đúng giá trị |
 | 0.464 ± 0.015 | Trung bình ± độ lệch chuẩn qua các seed | ± nhỏ = ổn định giữa các lần chạy |
 | p (BH) | p-value của paired t-test, hiệu chỉnh Benjamini-Hochberg | p < 0.05 = khác biệt có ý nghĩa thống kê |
-| seed | Một lần chạy với cách lấy mẫu ngẫu nhiên khác | main: 3 seed; ablation: 2 seed |
+| seed | Một lần chạy với cách lấy mẫu ngẫu nhiên khác | main FB15k-237, WN18RR: 3 seed; main YAGO3-10: 1 seed; ablation: 2 seed; Phần IV: 1 seed |
 
 ## Kết quả chính: main\_\*
 
-`main_<dataset>` so sánh mô hình đề xuất với 5 baseline có train, chạy 3 seed; ứng với Table V và Table VI.
+`main_<dataset>` so sánh mô hình đề xuất với 5 baseline có train; ứng với Table V và Table VI. FB15k-237 và WN18RR chạy 3 seed; YAGO3-10 chạy 1 seed (đồ thị lớn gấp ~4 lần), nên `main_yago3-10.md` không có ± và không có p-value.
 
 **File `.md`** gồm 2 bảng (uniform pairs, stratified pairs), mỗi bảng có cột MAE, RMSE, F1, Spearman, và cuối file là danh sách p-value. Các hàng:
 
@@ -80,6 +80,8 @@ Trường `cost` dùng cho cột Runtime của Table V và cho Fig. 2:
 | `neighbour_jaccard` | Tỉ lệ hàng xóm chung |
 
 Mỗi baseline có `test` và `val`, chia `uniform`/`stratified`, với các trường: `n` (số cặp), `mae`, `rmse`, `f1`, `precision`, `recall`, `pos_rate` (tỉ lệ cặp có nhãn ≥ 0.7), `confusion` (tp, fp, fn, tn), `pearson`, `spearman`. Ví dụ `pos_rate` = 0.0088 trên WN18RR nghĩa là chỉ 15 trên 1,706 cặp là "giống".
+
+**Kết quả YAGO3-10 (1 seed).** Giống hai dataset kia: mọi mô hình có MAE ≈ 0.50 (uniform) và ≈ 0.43–0.44 (stratified), trong khi `neighbour_jaccard` chỉ 0.021 (uniform). Khác biệt: stratified có nhiều cặp "giống" hơn (`pos_rate` 0.14, 1,962 cặp) nên Spearman cao hơn (≈ 0.62 cho mọi mô hình) và F1 0.70–0.86. Các mô hình gần như ngang nhau; Semantic only có F1 cao nhất (0.862). Nhãn train: 92% bằng 0, mean 0.056. Chi phí offline của Proposed: 1,894 s (mã hóa MPNet 499 s, train 1,393 s).
 
 ## Ablation: ablation\_fb15k-237
 
@@ -210,8 +212,8 @@ JSON: mỗi cấu hình (ví dụ `godel/1.0`) có `test_uniform`, `train` (th�
 
 | Hình | Vẽ từ | Thể hiện |
 | --- | --- | --- |
-| `training_loss_fb15k-237`, `training_loss_wn18rr` | Checkpoint của Proposed, seed 0 | Fig. 1: train MSE và val MSE theo epoch; đường đứt là epoch tốt nhất |
-| `main_fb15k-237`, `main_wn18rr` | `main_*.json` | Cột ngang MAE, RMSE, F1, Spearman cho 6 mô hình; xanh = uniform, cam = stratified; vạch đen = ± độ lệch chuẩn |
+| `training_loss_fb15k-237`, `training_loss_wn18rr`, `training_loss_yago3-10` | Checkpoint của Proposed, seed 0 | Fig. 1: train MSE và val MSE theo epoch; đường đứt là epoch tốt nhất |
+| `main_fb15k-237`, `main_wn18rr`, `main_yago3-10` | `main_*.json` | Cột ngang MAE, RMSE, F1, Spearman cho 6 mô hình; xanh = uniform, cam = stratified; vạch đen = ± độ lệch chuẩn |
 | `ablation_fb15k-237` | `ablation_fb15k-237.json` | Cùng kiểu, cho 8 biến thể ablation |
 | `reference_fb15k-237` | `reference_fb15k-237.json` | Trái: sai số local so với B\* theo độ sâu (thang log). Phải: thời gian local so với full-graph |
 | `latency` | `latency_fb15k-237.json` | Thời gian truy vấn theo d, thang log-log; đường thẳng = O(d) |
